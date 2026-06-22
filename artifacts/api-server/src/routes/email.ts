@@ -182,11 +182,12 @@ function parseReceiptText(text: string, subject: string): ParsedBill {
 }
 
 async function parseReceiptWithAI(text: string, subject: string): Promise<ParsedBill | null> {
-  const openaiKey = process.env["OPENAI_API_KEY"];
-  const openaiBase = process.env["OPENAI_API_BASE"] ?? "https://api.openai.com/v1";
+  const openaiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
+  const openaiBase = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"] ?? process.env["OPENAI_API_BASE"] ?? "https://api.openai.com/v1";
 
   if (!openaiKey) return null;
 
+  const today = new Date().toISOString().split("T")[0];
   const prompt = `You are a grocery receipt parser. Analyze this email and extract grocery purchase data.
 Email subject: "${subject}"
 Email body:
@@ -197,7 +198,7 @@ ${text.slice(0, 4000)}
 Extract all grocery items and return ONLY valid JSON in this exact format (no markdown, no explanation):
 {
   "store": "store name (or 'Unknown Store' if unclear)",
-  "date": "YYYY-MM-DD (today if not found: ${new Date().toISOString().split("T")[0]})",
+  "date": "YYYY-MM-DD (today if not found: ${today})",
   "total": 0.00,
   "items": [
     {"name": "item name", "qty": "quantity or unit", "price": 0.00, "category": "one of: Meat,Seafood,Produce,Dairy,Grains,Frozen,Snacks,Drinks,Pantry,Bakery,Deli,Tax,Other"}
@@ -217,15 +218,14 @@ Rules:
         Authorization: `Bearer ${openaiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        max_tokens: 1500,
-        temperature: 0.1,
+        model: "gpt-5-mini",
+        max_completion_tokens: 1500,
         messages: [{ role: "user", content: prompt }],
       }),
     });
 
     if (!response.ok) {
-      logger.error({ status: response.status }, "OpenAI receipt parse failed");
+      logger.error({ status: response.status }, "AI receipt parse failed");
       return null;
     }
 

@@ -55,11 +55,11 @@ router.post("/ocr", async (req, res) => {
     return;
   }
 
-  const openaiKey = process.env["OPENAI_API_KEY"];
-  const openaiBase = process.env["OPENAI_API_BASE"] ?? "https://api.openai.com/v1";
+  const openaiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
+  const openaiBase = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"] ?? process.env["OPENAI_API_BASE"] ?? "https://api.openai.com/v1";
 
   if (!openaiKey) {
-    logger.warn("OPENAI_API_KEY not set — returning mock OCR data");
+    logger.warn("No AI key configured — returning mock OCR data");
     const mockResponse: OCRResponse = {
       store: "Scanned Store",
       date: new Date().toISOString().split("T")[0],
@@ -100,7 +100,7 @@ Include a Tax item if tax appears. Use today's date if date is not visible.`;
       },
       body: JSON.stringify({
         model: "gpt-5-mini",
-        max_tokens: 1500,
+        max_completion_tokens: 1500,
         messages: [
           {
             role: "user",

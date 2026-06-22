@@ -71,11 +71,11 @@ router.post("/insights", async (req, res) => {
   const { totalThisMonth, categoryTotals, billCount, topItems, currencyCode, locale } =
     req.body as InsightsRequest;
 
-  const openaiKey = process.env["OPENAI_API_KEY"];
-  const openaiBase = process.env["OPENAI_API_BASE"] ?? "https://api.openai.com/v1";
+  const openaiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
+  const openaiBase = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"] ?? process.env["OPENAI_API_BASE"] ?? "https://api.openai.com/v1";
 
   if (!openaiKey) {
-    logger.warn("OPENAI_API_KEY not set — returning default insights");
+    logger.warn("No AI key configured — returning default insights");
     res.json({ insights: DEFAULT_INSIGHTS });
     return;
   }
@@ -148,9 +148,8 @@ Tag color pairs (pick varied): #dcfce7/#15803d, #fef9c3/#854d0e, #ede9fe/#6d28d9
         Authorization: `Bearer ${openaiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        max_tokens: 1200,
-        temperature: 0.7,
+        model: "gpt-5-mini",
+        max_completion_tokens: 1200,
         messages: [{ role: "user", content: prompt }],
       }),
     });

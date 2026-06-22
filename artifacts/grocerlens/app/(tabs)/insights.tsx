@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { InsightCard, type Insight } from "@/components/InsightCard";
 import { useExpenses } from "@/context/ExpenseContext";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
@@ -25,7 +26,7 @@ const DEFAULT_INSIGHTS: Insight[] = [
     id: "ins-1",
     icon: "leaf-outline",
     title: "Grow your own leafy greens",
-    body: "You spent $28 on spinach, kale, and lettuce this month. A small indoor herb kit (~$25 one-time) pays for itself in 6 weeks.",
+    body: "You spent significant amounts on spinach, kale, and lettuce this month. A small indoor herb kit (~25 in your currency one-time) pays for itself in 6 weeks.",
     tag: "Grow at home",
     saving: 18,
     tagColor: "#dcfce7",
@@ -36,7 +37,7 @@ const DEFAULT_INSIGHTS: Insight[] = [
     id: "ins-2",
     icon: "pricetag-outline",
     title: "Switch to store-brand dairy",
-    body: "Store-brand milk, yogurt, and cheese average 22% cheaper. Your dairy spend was $45 — you could save ~$10/month with no quality loss.",
+    body: "Store-brand milk, yogurt, and cheese average 22% cheaper than name brands with comparable nutrition. You could save ~10 units on your monthly dairy spend.",
     tag: "Quick win",
     saving: 10,
     tagColor: "#fef9c3",
@@ -46,8 +47,8 @@ const DEFAULT_INSIGHTS: Insight[] = [
   {
     id: "ins-3",
     icon: "cube-outline",
-    title: "Bulk-buy chicken & freeze",
-    body: "Costco chicken breast at $3.49/lb vs $7.49/lb at Whole Foods. Buying 10 lbs and freezing saves ~$40 per trip.",
+    title: "Bulk-buy protein and freeze",
+    body: "Warehouse clubs price chicken 40–50% cheaper per kilogram. Buying in bulk and portioning for the freezer is a major saver each month.",
     tag: "Bulk buy",
     saving: 40,
     tagColor: "#ede9fe",
@@ -58,7 +59,7 @@ const DEFAULT_INSIGHTS: Insight[] = [
     id: "ins-4",
     icon: "calendar-outline",
     title: "Shop mid-week for lower prices",
-    body: "Produce prices are typically 10–15% lower on Tuesday–Wednesday when stores restock. Your recent bills show weekend shopping patterns.",
+    body: "Produce prices are typically 10–15% lower on Tuesday–Wednesday when stores restock. Shifting your shopping day can reduce your weekly bill noticeably.",
     tag: "Timing tip",
     tagColor: "#fff7ed",
     tagTextColor: "#c2410c",
@@ -68,13 +69,13 @@ const DEFAULT_INSIGHTS: Insight[] = [
 
 export default function InsightsScreen() {
   const colors = useColors();
+  const currency = useCurrency();
   const insets = useSafeAreaInsets();
-  const { bills, categoryTotals, totalThisMonth, familyMembers } = useExpenses();
+  const { bills, categoryTotals, totalThisMonth } = useExpenses();
   const [insights, setInsights] = useState<Insight[]>(DEFAULT_INSIGHTS);
   const [loading, setLoading] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
-
   const totalSaving = insights.reduce((s, ins) => s + (ins.saving ?? 0), 0);
 
   async function loadAIInsights() {
@@ -88,6 +89,8 @@ export default function InsightsScreen() {
           totalThisMonth,
           categoryTotals,
           billCount: bills.length,
+          currencyCode: currency.currencyCode,
+          locale: currency.locale,
         }),
       });
       if (!response.ok) throw new Error("Failed to load insights");
@@ -103,9 +106,12 @@ export default function InsightsScreen() {
     }
   }
 
-  // Bar chart data — last 6 months (synthetic for demo, since we have limited data)
   const monthBars = [72, 88, 76, 95, 82, Math.min(Math.round((totalThisMonth / 300) * 100), 100)];
-  const monthLabels = ["J", "F", "M", "A", "M", "J"];
+  const monthLabels = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - (5 - i));
+    return d.toLocaleDateString(undefined, { month: "narrow" });
+  });
 
   return (
     <ScrollView
@@ -144,7 +150,7 @@ export default function InsightsScreen() {
           <Text style={styles.summaryText}>
             Save up to{" "}
             <Text style={{ color: "#fbbf24", fontFamily: "Inter_700Bold" }}>
-              ${totalSaving}/mo
+              {currency.format(totalSaving)}/mo
             </Text>{" "}
             with {insights.length} changes
           </Text>
@@ -195,7 +201,7 @@ export default function InsightsScreen() {
         onPress={() =>
           Alert.alert(
             "Share via WhatsApp",
-            "WhatsApp Business API integration sends your monthly summary to all household members. Set up in the next version.",
+            "Send your monthly summary to all household members on WhatsApp. This feature is coming in the next update.",
             [{ text: "Got it" }]
           )
         }

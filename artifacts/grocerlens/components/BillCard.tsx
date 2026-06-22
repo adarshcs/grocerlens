@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import type { Bill, CaptureMethod } from "@/context/ExpenseContext";
 
 const METHOD_META: Record<
@@ -23,7 +24,7 @@ function formatDate(dateStr: string): string {
   );
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 interface BillCardProps {
@@ -33,6 +34,7 @@ interface BillCardProps {
 
 export function BillCard({ bill, onPress }: BillCardProps) {
   const colors = useColors();
+  const currency = useCurrency();
   const meta = METHOD_META[bill.captureMethod];
 
   return (
@@ -60,7 +62,7 @@ export function BillCard({ bill, onPress }: BillCardProps) {
       </View>
       <View style={styles.right}>
         <Text style={[styles.amount, { color: colors.foreground }]}>
-          ${bill.total.toFixed(2)}
+          {currency.format(bill.total)}
         </Text>
         <Text style={[styles.itemCount, { color: colors.mutedForeground }]}>
           {bill.items.filter((i) => i.category !== "Tax").length} items

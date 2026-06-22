@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useExpenses, type CaptureMethod } from "@/context/ExpenseContext";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 
 const CATEGORY_COLORS: Record<string, string> = {
   Meat: "#fde68a",
@@ -45,11 +46,11 @@ const METHOD_META: Record<
 export default function BillDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
+  const currency = useCurrency();
   const insets = useSafeAreaInsets();
   const { bills, familyMembers, removeBill } = useExpenses();
 
   const bill = bills.find((b) => b.id === id);
-
   const topInset = Platform.OS === "web" ? 67 : insets.top;
 
   if (!bill) {
@@ -70,11 +71,12 @@ export default function BillDetailScreen() {
   const meta = METHOD_META[bill.captureMethod];
   const perPersonShare = familyMembers.length > 0 ? bill.total / familyMembers.length : bill.total;
   const nonTaxItems = bill.items.filter((i) => i.category !== "Tax");
+  const taxItem = bill.items.find((i) => i.category === "Tax");
 
   function handleDelete() {
     Alert.alert(
       "Delete bill",
-      `Remove ${bill.store} — $${bill.total.toFixed(2)} from your records?`,
+      `Remove ${bill!.store} — ${currency.format(bill!.total)} from your records?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -82,7 +84,7 @@ export default function BillDetailScreen() {
           style: "destructive",
           onPress: async () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            await removeBill(bill.id);
+            await removeBill(bill!.id);
             router.back();
           },
         },
@@ -100,16 +102,10 @@ export default function BillDetailScreen() {
         ]}
       >
         <View style={styles.headerTop}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={20} color="#ffffff" />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={handleDelete}
-          >
+          <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
             <Ionicons name="trash-outline" size={18} color="#fca5a5" />
           </TouchableOpacity>
         </View>
@@ -120,7 +116,7 @@ export default function BillDetailScreen() {
             <Text style={styles.methodBadgeText}>{meta.label}</Text>
           </View>
           <Text style={styles.dateText}>
-            {new Date(bill.date + "T00:00:00").toLocaleDateString("en-US", {
+            {new Date(bill.date + "T00:00:00").toLocaleDateString(undefined, {
               weekday: "short",
               month: "long",
               day: "numeric",
@@ -132,8 +128,8 @@ export default function BillDetailScreen() {
         <View style={styles.totalsBar}>
           {[
             { label: "Items", value: String(nonTaxItems.length) },
-            { label: "Tax", value: `$${(bill.items.find((i) => i.category === "Tax")?.price ?? 0).toFixed(2)}` },
-            { label: "Total", value: `$${bill.total.toFixed(2)}` },
+            { label: "Tax", value: currency.format(taxItem?.price ?? 0) },
+            { label: "Total", value: currency.format(bill.total) },
           ].map((t, i) => (
             <View key={t.label} style={[styles.totalItem, i > 0 && styles.totalItemBorder]}>
               <Text style={styles.totalValue}>{t.value}</Text>
@@ -155,7 +151,7 @@ export default function BillDetailScreen() {
                 </View>
                 <Text style={[styles.memberName, { color: colors.foreground }]}>{m.name}</Text>
                 <Text style={[styles.memberShare, { color: colors.mutedForeground }]}>
-                  ${perPersonShare.toFixed(2)}
+                  {currency.format(perPersonShare)}
                 </Text>
               </View>
             ))}
@@ -198,7 +194,7 @@ export default function BillDetailScreen() {
               ) : null}
             </View>
             <Text style={[styles.itemPrice, { color: colors.foreground }]}>
-              ${item.price.toFixed(2)}
+              {currency.format(item.price)}
             </Text>
           </View>
         )}
@@ -209,11 +205,7 @@ export default function BillDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 20,
@@ -284,7 +276,7 @@ const styles = StyleSheet.create({
   },
   totalValue: {
     color: "#ffffff",
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: "Inter_700Bold",
   },
   totalLabel: {

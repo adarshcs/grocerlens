@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface SummaryCardProps {
   totalThisMonth: number;
@@ -14,21 +15,34 @@ export function SummaryCard({
   budget = 400,
 }: SummaryCardProps) {
   const colors = useColors();
+  const currency = useCurrency();
   const pct = Math.min((totalThisMonth / budget) * 100, 100);
-  const diff = totalLastMonth > 0 ? ((totalThisMonth - totalLastMonth) / totalLastMonth) * 100 : 0;
+  const diff =
+    totalLastMonth > 0
+      ? ((totalThisMonth - totalLastMonth) / totalLastMonth) * 100
+      : 0;
   const isUp = diff > 0;
+
+  const parts = currency.formatParts(totalThisMonth);
+  const budgetFormatted = currency.format(budget);
+  const spentFormatted = currency.format(totalThisMonth);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.primary }]}>
       <Text style={styles.label}>This month</Text>
       <View style={styles.amountRow}>
-        <Text style={styles.currency}>$</Text>
-        <Text style={styles.amount}>
-          {Math.floor(totalThisMonth).toLocaleString()}
-        </Text>
-        <Text style={styles.cents}>
-          .{String(Math.round((totalThisMonth % 1) * 100)).padStart(2, "0")}
-        </Text>
+        {parts.symbolPosition === "prefix" && (
+          <Text style={styles.currencySymbol}>{parts.symbol}</Text>
+        )}
+        <Text style={styles.amount}>{parts.whole}</Text>
+        {parts.hasDecimals && (
+          <Text style={styles.cents}>
+            {parts.decimalSep}{parts.fraction}
+          </Text>
+        )}
+        {parts.symbolPosition === "suffix" && (
+          <Text style={styles.currencySuffix}> {parts.symbol}</Text>
+        )}
       </View>
       {totalLastMonth > 0 && (
         <View style={styles.diffRow}>
@@ -41,8 +55,8 @@ export function SummaryCard({
         <View style={[styles.progressFill, { width: `${pct}%` as any }]} />
       </View>
       <View style={styles.budgetRow}>
-        <Text style={styles.budgetText}>${totalThisMonth.toFixed(0)} spent</Text>
-        <Text style={styles.budgetText}>${budget} budget</Text>
+        <Text style={styles.budgetText}>{spentFormatted} spent</Text>
+        <Text style={styles.budgetText}>{budgetFormatted} budget</Text>
       </View>
     </View>
   );
@@ -67,11 +81,17 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     marginTop: 4,
   },
-  currency: {
+  currencySymbol: {
     color: "rgba(255,255,255,0.8)",
     fontSize: 20,
     fontFamily: "Inter_600SemiBold",
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  currencySuffix: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 24,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 6,
   },
   amount: {
     color: "#ffffff",

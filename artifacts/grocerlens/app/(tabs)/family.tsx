@@ -3,22 +3,23 @@ import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import {
   Alert,
-  FlatList,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollViewCompat } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FamilyMemberCard } from "@/components/FamilyMemberCard";
 import { useExpenses } from "@/context/ExpenseContext";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 
 export default function FamilyScreen() {
   const colors = useColors();
+  const currency = useCurrency();
   const insets = useSafeAreaInsets();
   const { familyMembers, bills, addFamilyMember, removeFamilyMember } = useExpenses();
   const [name, setName] = useState("");
@@ -27,11 +28,8 @@ export default function FamilyScreen() {
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
 
-  function getShareForMember(memberId: string) {
-    if (familyMembers.length === 0) return 0;
-    const total = bills.reduce((s, b) => s + b.total, 0);
-    return total / familyMembers.length;
-  }
+  const totalSpend = bills.reduce((s, b) => s + b.total, 0);
+  const perPersonShare = familyMembers.length > 0 ? totalSpend / familyMembers.length : 0;
 
   async function handleAdd() {
     if (!name.trim()) return;
@@ -67,11 +65,8 @@ export default function FamilyScreen() {
     );
   }
 
-  const totalSpend = bills.reduce((s, b) => s + b.total, 0);
-  const perPersonShare = familyMembers.length > 0 ? totalSpend / familyMembers.length : 0;
-
   return (
-    <KeyboardAwareScrollViewCompat
+    <ScrollView
       style={{ backgroundColor: colors.background, flex: 1 }}
       contentContainerStyle={{
         paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 80,
@@ -87,8 +82,8 @@ export default function FamilyScreen() {
       >
         <Text style={styles.headerTitle}>Household</Text>
         <Text style={styles.headerSub}>
-          {familyMembers.length} member{familyMembers.length !== 1 ? "s" : ""} · $
-          {perPersonShare.toFixed(2)} each this month
+          {familyMembers.length} member{familyMembers.length !== 1 ? "s" : ""} ·{" "}
+          {currency.format(perPersonShare)} each this month
         </Text>
       </View>
 
@@ -198,9 +193,9 @@ export default function FamilyScreen() {
       </View>
       <View style={[styles.statsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {[
-          { label: "Total spend", value: `$${totalSpend.toFixed(2)}` },
+          { label: "Total spend", value: currency.format(totalSpend) },
           { label: "Bills tracked", value: String(bills.length) },
-          { label: "Per person", value: `$${perPersonShare.toFixed(2)}` },
+          { label: "Per person", value: currency.format(perPersonShare) },
         ].map((s, i) => (
           <React.Fragment key={s.label}>
             {i > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
@@ -211,7 +206,7 @@ export default function FamilyScreen() {
           </React.Fragment>
         ))}
       </View>
-    </KeyboardAwareScrollViewCompat>
+    </ScrollView>
   );
 }
 

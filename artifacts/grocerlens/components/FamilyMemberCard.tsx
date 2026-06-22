@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 import type { FamilyMember } from "@/context/ExpenseContext";
 
 interface FamilyMemberCardProps {
@@ -18,6 +19,7 @@ export function FamilyMemberCard({
   onRemove,
 }: FamilyMemberCardProps) {
   const colors = useColors();
+  const currency = useCurrency();
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -39,7 +41,7 @@ export function FamilyMemberCard({
           </Text>
         )}
         <Text style={[styles.stats, { color: colors.mutedForeground }]}>
-          ${totalShare.toFixed(2)} · {billCount} bill{billCount !== 1 ? "s" : ""}
+          {currency.format(totalShare)} · {billCount} bill{billCount !== 1 ? "s" : ""}
         </Text>
       </View>
       {!member.isOwner && onRemove && (

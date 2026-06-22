@@ -17,9 +17,11 @@ import { CategoryBar } from "@/components/CategoryBar";
 import { SummaryCard } from "@/components/SummaryCard";
 import { useExpenses } from "@/context/ExpenseContext";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 
 export default function DashboardScreen() {
   const colors = useColors();
+  const currency = useCurrency();
   const insets = useSafeAreaInsets();
   const { bills, familyMembers, totalThisMonth, totalLastMonth, categoryTotals, isLoading } =
     useExpenses();
@@ -53,7 +55,9 @@ export default function DashboardScreen() {
         ]}
       >
         <View>
-          <Text style={styles.headerSub}>June 2026</Text>
+          <Text style={styles.headerSub}>
+            {new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+          </Text>
           <Text style={styles.headerTitle}>GrocerLens</Text>
         </View>
         <View style={styles.avatarRow}>

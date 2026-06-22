@@ -37,4 +37,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-SENDGRID_INBOUND_DOMAIN = "bills.grocerlens.app"
+SENDGRID_INBOUND_DOMAIN = "bills.codegreen.co.in"

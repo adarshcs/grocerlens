@@ -60,7 +60,6 @@ const PRODUCTS: ProductConfig[] = [
     packageIdentifier: "$rc_monthly",
     packageDisplayName: "Monthly Premium",
     prices: [
-      { amount_micros: 99_000_000, currency: "INR" },
       { amount_micros: 1_990_000, currency: "USD" },
     ],
   },
@@ -73,7 +72,6 @@ const PRODUCTS: ProductConfig[] = [
     packageIdentifier: "$rc_annual",
     packageDisplayName: "Annual Premium",
     prices: [
-      { amount_micros: 799_000_000, currency: "INR" },
       { amount_micros: 14_990_000, currency: "USD" },
     ],
   },

@@ -7,6 +7,7 @@ import {
   householdBillsTable,
   billItemsTable,
 } from "@workspace/db";
+import { getQuotaStatus } from "../lib/quota";
 
 const router = Router();
 
@@ -323,11 +324,18 @@ router.get("/households/:id/sync", async (req, res) => {
     .where(eq(householdsTable.id, id))
     .limit(1);
 
+  const quota = await getQuotaStatus(id).catch(() => null);
+
   res.json({
     bills: billsWithItems,
     members,
     receiptEmail: household ? getReceiptEmail(household.receiptEmailPrefix, req) : "",
     currencyCode: household?.currencyCode ?? "INR",
+    quota: quota ?? {
+      billScans: { used: 0, limit: 4 },
+      insightRefreshes: { used: 0, limit: 4 },
+      isPremium: false,
+    },
   });
 });
 

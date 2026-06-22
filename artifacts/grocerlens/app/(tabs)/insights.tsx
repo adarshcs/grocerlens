@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
+import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { InsightCard, type Insight } from "@/components/InsightCard";
+import { QuotaBanner } from "@/components/QuotaBanner";
 import { useExpenses } from "@/context/ExpenseContext";
 import { useColors } from "@/hooks/useColors";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -73,7 +75,7 @@ export default function InsightsScreen() {
   const colors = useColors();
   const currency = useCurrency();
   const insets = useSafeAreaInsets();
-  const { bills, categoryTotals, totalThisMonth, familyMembers } = useExpenses();
+  const { bills, categoryTotals, totalThisMonth, familyMembers, householdId, quota } = useExpenses();
   const [insights, setInsights] = useState<Insight[]>(DEFAULT_INSIGHTS);
   const [loading, setLoading] = useState(false);
 
@@ -135,8 +137,15 @@ export default function InsightsScreen() {
           memberCount: familyMembers.length,
           recentDates,
           currentDate: new Date().toISOString().split("T")[0],
+          householdId: householdId ?? undefined,
         }),
       });
+      if (response.status === 402) {
+        const err = await response.json();
+        router.push("/paywall");
+        Alert.alert("Refresh limit reached", err.message ?? "Upgrade to refresh insights.");
+        return;
+      }
       if (!response.ok) throw new Error("Failed to load insights");
       const data = (await response.json()) as { insights?: Insight[] };
       if (data.insights?.length) {
@@ -230,6 +239,8 @@ export default function InsightsScreen() {
           </Text>
         </View>
       </View>
+
+      <QuotaBanner label="Insight refreshes" quota={quota.insightRefreshes} isPremium={quota.isPremium} />
 
       {/* Top items spotlight */}
       {topItems.length > 0 && (

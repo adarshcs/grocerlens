@@ -89,6 +89,10 @@ function RootLayoutNav() {
         name="sso-callback"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="paywall"
+        options={{ headerShown: false, presentation: "modal" }}
+      />
     </Stack>
   );
 }

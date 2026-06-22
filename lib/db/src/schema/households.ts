@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, real } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, real, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -43,6 +43,19 @@ export const billItemsTable = pgTable("bill_items", {
   price: real("price").notNull(),
   category: text("category").notNull().default("Pantry"),
 });
+
+export const usageQuotasTable = pgTable("usage_quotas", {
+  id: text("id").primaryKey(),
+  householdId: text("household_id").notNull().references(() => householdsTable.id, { onDelete: "cascade" }),
+  period: text("period").notNull(),
+  billScans: integer("bill_scans").notNull().default(0),
+  insightRefreshes: integer("insight_refreshes").notNull().default(0),
+  isPremium: boolean("is_premium").notNull().default(false),
+  subscriptionExpiresAt: timestamp("subscription_expires_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type UsageQuota = typeof usageQuotasTable.$inferSelect;
 
 export const insertHouseholdSchema = createInsertSchema(householdsTable);
 export const insertMemberSchema = createInsertSchema(householdMembersTable);

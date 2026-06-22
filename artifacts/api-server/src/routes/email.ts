@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { softCountQuota } from "../lib/quota";
 import multer from "multer";
 import { simpleParser } from "mailparser";
 import { createRequire } from "node:module";
@@ -491,6 +492,8 @@ router.post(
         }))
       ).onConflictDoNothing();
     }
+
+    softCountQuota(household.id, "billScans").catch(() => {});
 
     logger.info(
       { householdId: household.id, billId, store: parsed.store, total, itemCount: parsed.items.length },

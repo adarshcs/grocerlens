@@ -46,6 +46,18 @@ export interface FamilyMember {
   isOwner?: boolean;
 }
 
+export interface QuotaStatus {
+  billScans: { used: number; limit: number };
+  insightRefreshes: { used: number; limit: number };
+  isPremium: boolean;
+}
+
+const DEFAULT_QUOTA: QuotaStatus = {
+  billScans: { used: 0, limit: 4 },
+  insightRefreshes: { used: 0, limit: 4 },
+  isPremium: false,
+};
+
 interface ExpenseContextType {
   bills: Bill[];
   familyMembers: FamilyMember[];
@@ -57,6 +69,7 @@ interface ExpenseContextType {
   inviteCode: string | null;
   isHouseholdOwner: boolean;
   householdCurrency: string;
+  quota: QuotaStatus;
   addBill: (bill: Omit<Bill, "id" | "addedAt">) => Promise<void>;
   removeBill: (id: string) => Promise<void>;
   addFamilyMember: (member: Omit<FamilyMember, "id">) => Promise<void>;
@@ -260,6 +273,7 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isHouseholdOwner, setIsHouseholdOwner] = useState(true);
   const [householdCurrency, setHouseholdCurrency] = useState<string>("INR");
+  const [quota, setQuota] = useState<QuotaStatus>(DEFAULT_QUOTA);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -423,6 +437,7 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
       members: Record<string, unknown>[];
       receiptEmail?: string;
       currencyCode?: string;
+      quota?: QuotaStatus;
     };
     const newBills = serverBillsToLocal(data.bills);
     const newMembers = serverMembersToLocal(data.members, devId);
@@ -430,6 +445,7 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
     setFamilyMembers(newMembers);
     if (data.receiptEmail) setEmailAddress(data.receiptEmail);
     if (data.currencyCode) setHouseholdCurrency(data.currencyCode);
+    if (data.quota) setQuota(data.quota);
     AsyncStorage.multiSet([
       [STORAGE_KEYS.BILLS, JSON.stringify(newBills)],
       [STORAGE_KEYS.MEMBERS, JSON.stringify(newMembers)],
@@ -630,6 +646,7 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
         inviteCode,
         isHouseholdOwner,
         householdCurrency,
+        quota,
         addBill,
         removeBill,
         addFamilyMember,

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { checkAndIncrementQuota, FREE_LIMITS } from "../lib/quota";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -22,6 +23,7 @@ interface InsightsRequest {
   memberCount?: number;
   recentDates?: string[];
   currentDate?: string;
+  householdId?: string;
 }
 
 const DEFAULT_INSIGHTS = [
@@ -173,7 +175,22 @@ router.post("/insights", async (req, res) => {
     memberCount = 1,
     recentDates = [],
     currentDate,
+    householdId,
   } = req.body as InsightsRequest;
+
+  if (householdId) {
+    const quota = await checkAndIncrementQuota(householdId, "insightRefreshes");
+    if (!quota.allowed) {
+      res.status(402).json({
+        error: "quota_exceeded",
+        type: "insightRefreshes",
+        used: quota.used,
+        limit: quota.limit,
+        message: `You've used all ${FREE_LIMITS.insightRefreshes} free insight refreshes this month. Upgrade to continue.`,
+      });
+      return;
+    }
+  }
 
   const openaiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
   const openaiBase =

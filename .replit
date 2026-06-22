@@ -38,3 +38,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 SENDGRID_INBOUND_DOMAIN = "bills.codegreen.co.in"
+OPENAI_API_KEY = "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"

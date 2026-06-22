@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { checkAndIncrementQuota, FREE_LIMITS } from "../lib/quota";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -6,6 +7,7 @@ const router = Router();
 interface OCRRequest {
   imageBase64: string;
   mimeType?: string;
+  householdId?: string;
 }
 
 interface BillItem {
@@ -48,11 +50,25 @@ function generateId(): string {
 }
 
 router.post("/ocr", async (req, res) => {
-  const { imageBase64, mimeType = "image/jpeg" } = req.body as OCRRequest;
+  const { imageBase64, mimeType = "image/jpeg", householdId } = req.body as OCRRequest;
 
   if (!imageBase64) {
     res.status(400).json({ error: "imageBase64 is required" });
     return;
+  }
+
+  if (householdId) {
+    const quota = await checkAndIncrementQuota(householdId, "billScans");
+    if (!quota.allowed) {
+      res.status(402).json({
+        error: "quota_exceeded",
+        type: "billScans",
+        used: quota.used,
+        limit: quota.limit,
+        message: `You've used all ${FREE_LIMITS.billScans} free scans this month. Upgrade to continue.`,
+      });
+      return;
+    }
   }
 
   const openaiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];

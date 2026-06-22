@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -15,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { QuotaBanner } from "@/components/QuotaBanner";
 import { useExpenses } from "@/context/ExpenseContext";
 import { useColors } from "@/hooks/useColors";
 
@@ -25,7 +27,7 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
 export default function CaptureScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { smsMonitoringEnabled, setSmsMonitoringEnabled, emailAddress, addBill } =
+  const { smsMonitoringEnabled, setSmsMonitoringEnabled, emailAddress, addBill, householdId, quota } =
     useExpenses();
   const [emailCopied, setEmailCopied] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -74,9 +76,16 @@ export default function CaptureScreen() {
         body: JSON.stringify({
           imageBase64: asset.base64,
           mimeType: asset.mimeType ?? "image/jpeg",
+          householdId: householdId ?? undefined,
         }),
       });
 
+      if (response.status === 402) {
+        const err = await response.json();
+        router.push("/paywall");
+        Alert.alert("Scan limit reached", err.message ?? "Upgrade to continue scanning.");
+        return;
+      }
       if (!response.ok) throw new Error("OCR failed");
 
       const data = await response.json();
@@ -92,7 +101,7 @@ export default function CaptureScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         "Receipt added",
-        `${data.store ?? "Receipt"} — $${(data.total ?? 0).toFixed(2)} added to your bills.`
+        `${data.store ?? "Receipt"} — ₹${(data.total ?? 0).toFixed(2)} added to your bills.`
       );
     } catch {
       Alert.alert(
@@ -129,8 +138,15 @@ export default function CaptureScreen() {
         body: JSON.stringify({
           imageBase64: asset.base64,
           mimeType: "image/jpeg",
+          householdId: householdId ?? undefined,
         }),
       });
+      if (response.status === 402) {
+        const err = await response.json();
+        router.push("/paywall");
+        Alert.alert("Scan limit reached", err.message ?? "Upgrade to continue scanning.");
+        return;
+      }
       if (!response.ok) throw new Error("OCR failed");
       const data = await response.json();
       await addBill({
@@ -144,7 +160,7 @@ export default function CaptureScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         "Receipt added",
-        `${data.store ?? "Receipt"} — $${(data.total ?? 0).toFixed(2)} saved!`
+        `${data.store ?? "Receipt"} — ₹${(data.total ?? 0).toFixed(2)} saved!`
       );
     } catch {
       Alert.alert("Could not read receipt", "Try again or upload from gallery.");
@@ -173,6 +189,8 @@ export default function CaptureScreen() {
           Choose how you want to capture your grocery bill
         </Text>
       </View>
+
+      <QuotaBanner label="Bill scans" quota={quota.billScans} isPremium={quota.isPremium} />
 
       <View style={styles.content}>
 

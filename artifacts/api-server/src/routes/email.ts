@@ -7,8 +7,9 @@ const PDFParse: new (opts: object) => { load(buf: Buffer): Promise<void>; getTex
   _pdfMod.PDFParse ?? _pdfMod.default?.PDFParse ?? _pdfMod.default;
 
 async function parsePdfBuffer(buf: Buffer): Promise<string> {
-  const parser = new PDFParse({});
-  await parser.load(buf);
+  // pdf-parse v2: options are passed to pdfjs getDocument — data goes in constructor
+  const parser = new PDFParse({ data: new Uint8Array(buf) } as object);
+  await parser.load();
   return parser.getText();
 }
 import { logger } from "../lib/logger";

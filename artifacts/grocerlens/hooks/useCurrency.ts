@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { createCurrencyFormatter, getDeviceLocale, type CurrencyFormatter } from "@/utils/currency";
+import { useExpenses } from "@/context/ExpenseContext";
 
 let cachedLocale: string | null = null;
 
@@ -11,5 +12,9 @@ function getLocaleOnce(): string {
 
 export function useCurrency(): CurrencyFormatter {
   const locale = getLocaleOnce();
-  return useMemo(() => createCurrencyFormatter(locale), [locale]);
+  const { householdCurrency } = useExpenses();
+  return useMemo(
+    () => createCurrencyFormatter(locale, householdCurrency || undefined),
+    [locale, householdCurrency]
+  );
 }

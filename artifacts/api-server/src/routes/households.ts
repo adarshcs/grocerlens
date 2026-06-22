@@ -327,6 +327,7 @@ router.get("/households/:id/sync", async (req, res) => {
     bills: billsWithItems,
     members,
     receiptEmail: household ? getReceiptEmail(household.receiptEmailPrefix, req) : "",
+    currencyCode: household?.currencyCode ?? "INR",
   });
 });
 

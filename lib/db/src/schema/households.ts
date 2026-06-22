@@ -7,6 +7,7 @@ export const householdsTable = pgTable("households", {
   inviteCode: text("invite_code").notNull().unique(),
   ownerDeviceId: text("owner_device_id").notNull(),
   receiptEmailPrefix: text("receipt_email_prefix").unique(),
+  currencyCode: text("currency_code").notNull().default("INR"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

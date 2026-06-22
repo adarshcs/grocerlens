@@ -78,8 +78,8 @@ export interface CurrencyFormatter {
   symbolPosition: "prefix" | "suffix";
 }
 
-export function createCurrencyFormatter(locale: string): CurrencyFormatter {
-  const currencyCode = getCurrencyCode(locale);
+export function createCurrencyFormatter(locale: string, currencyCodeOverride?: string): CurrencyFormatter {
+  const currencyCode = currencyCodeOverride || getCurrencyCode(locale);
 
   const formatter = new Intl.NumberFormat(locale, {
     style: "currency",

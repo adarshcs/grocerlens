@@ -56,6 +56,7 @@ interface ExpenseContextType {
   householdId: string | null;
   inviteCode: string | null;
   isHouseholdOwner: boolean;
+  householdCurrency: string;
   addBill: (bill: Omit<Bill, "id" | "addedAt">) => Promise<void>;
   removeBill: (id: string) => Promise<void>;
   addFamilyMember: (member: Omit<FamilyMember, "id">) => Promise<void>;
@@ -258,6 +259,7 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isHouseholdOwner, setIsHouseholdOwner] = useState(true);
+  const [householdCurrency, setHouseholdCurrency] = useState<string>("INR");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -420,14 +422,14 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
       bills: Record<string, unknown>[];
       members: Record<string, unknown>[];
       receiptEmail?: string;
+      currencyCode?: string;
     };
     const newBills = serverBillsToLocal(data.bills);
     const newMembers = serverMembersToLocal(data.members, devId);
     setBills(newBills);
     setFamilyMembers(newMembers);
-    if (data.receiptEmail) {
-      setEmailAddress(data.receiptEmail);
-    }
+    if (data.receiptEmail) setEmailAddress(data.receiptEmail);
+    if (data.currencyCode) setHouseholdCurrency(data.currencyCode);
     AsyncStorage.multiSet([
       [STORAGE_KEYS.BILLS, JSON.stringify(newBills)],
       [STORAGE_KEYS.MEMBERS, JSON.stringify(newMembers)],
@@ -627,6 +629,7 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
         householdId,
         inviteCode,
         isHouseholdOwner,
+        householdCurrency,
         addBill,
         removeBill,
         addFamilyMember,

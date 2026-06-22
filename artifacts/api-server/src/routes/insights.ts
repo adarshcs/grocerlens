@@ -24,46 +24,46 @@ const DEFAULT_INSIGHTS = [
   {
     id: "ins-1",
     icon: "leaf-outline",
-    title: "Grow your own cherry tomatoes",
-    body: "Cherry tomatoes appear frequently in your shopping. A $12 pot + seeds yields ~2kg/month, saving you the equivalent of 3–4 pints at supermarket prices — payback in under 6 weeks.",
-    tag: "Grow at home",
-    saving: 22,
+    title: "Buy vegetables from local sabzi market",
+    body: "Supermarket vegetables cost 30–50% more than your nearest sabzi mandi or wet market. A weekly trip for staples like tomato, onion, and greens can save ₹300–500/month without any change in quality.",
+    tag: "Quick win",
+    saving: 400,
     tagColor: "#dcfce7",
     tagTextColor: "#15803d",
-    cta: "See guide",
+    cta: "Find markets",
   },
   {
     id: "ins-2",
-    icon: "pricetag-outline",
-    title: "Switch dairy to store brand",
-    body: "Your dairy spend is one of the top categories. Store-brand milk, yogurt and cheese average 22% cheaper with comparable nutrition — a consistent saving every month.",
-    tag: "Quick win",
-    saving: 12,
-    tagColor: "#fef9c3",
-    tagTextColor: "#854d0e",
-    cta: "Compare",
+    icon: "cube-outline",
+    title: "Stock up on dal and rice in bulk",
+    body: "Pulses and rice are pantry staples that keep for months. Buying a 5 kg or 10 kg pack from a wholesale store or D-Mart typically saves 15–20% versus smaller supermarket packs.",
+    tag: "Bulk buy",
+    saving: 250,
+    tagColor: "#ede9fe",
+    tagTextColor: "#6d28d9",
+    cta: "Add to list",
   },
   {
     id: "ins-3",
-    icon: "cube-outline",
-    title: "Bulk-buy chicken and freeze",
-    body: "Chicken appears across multiple trips at full retail price. Buying a 10 lb pack from a warehouse club costs 40–50% less per pound — portion and freeze for the same convenience.",
-    tag: "Bulk buy",
-    saving: 38,
-    tagColor: "#ede9fe",
-    tagTextColor: "#6d28d9",
-    cta: "Add reminder",
+    icon: "calendar-outline",
+    title: "Buy seasonal fruits, skip off-season ones",
+    body: "Off-season fruits like mangoes in winter or strawberries in summer can cost 3–4× more. Sticking to what's in season (check local market prices) cuts fruit spend significantly.",
+    tag: "Seasonal",
+    saving: 300,
+    tagColor: "#fff7ed",
+    tagTextColor: "#c2410c",
+    cta: "See calendar",
   },
   {
     id: "ins-4",
-    icon: "trending-down-outline",
-    title: "Avocado prices drop mid-season",
-    body: "Avocado prices typically fall 30–40% in late summer (July–September). Buying extra when they're cheap and freezing halves lets you lock in the lower price year-round.",
-    tag: "Price alert",
-    saving: 15,
-    tagColor: "#fff7ed",
-    tagTextColor: "#c2410c",
-    cta: "Set reminder",
+    icon: "pricetag-outline",
+    title: "Switch to store-brand oils and spices",
+    body: "Private-label cooking oils, masalas, and packaged spices from Lulu, More, or D-Mart are typically 20–30% cheaper than branded equivalents with comparable quality — a consistent monthly saving.",
+    tag: "Store brand",
+    saving: 180,
+    tagColor: "#fef9c3",
+    tagTextColor: "#854d0e",
+    cta: "Compare",
   },
 ];
 
@@ -72,7 +72,10 @@ router.post("/insights", async (req, res) => {
     req.body as InsightsRequest;
 
   const openaiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
-  const openaiBase = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"] ?? process.env["OPENAI_API_BASE"] ?? "https://api.openai.com/v1";
+  const openaiBase =
+    process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"] ??
+    process.env["OPENAI_API_BASE"] ??
+    "https://api.openai.com/v1";
 
   if (!openaiKey) {
     logger.warn("No AI key configured — returning default insights");
@@ -81,7 +84,8 @@ router.post("/insights", async (req, res) => {
   }
 
   try {
-    const currency = currencyCode ?? "USD";
+    const currency = currencyCode ?? "INR";
+    const isINR = currency === "INR";
 
     const topCategoriesText = Object.entries(categoryTotals)
       .filter(([cat]) => cat !== "Tax")
@@ -90,36 +94,48 @@ router.post("/insights", async (req, res) => {
       .map(([cat, amount]) => `${cat}: ${amount.toFixed(2)} ${currency}`)
       .join("\n");
 
-    const topItemsText = topItems && topItems.length > 0
-      ? topItems
-          .slice(0, 12)
-          .map(
-            (i) =>
-              `- ${i.name} (${i.category}): bought ${i.count}× this period, total ${i.totalSpent.toFixed(2)} ${currency}, avg ${i.avgPrice.toFixed(2)} ${currency} each`
-          )
-          .join("\n")
-      : "No item-level data";
+    const topItemsText =
+      topItems && topItems.length > 0
+        ? topItems
+            .slice(0, 15)
+            .map(
+              (i) =>
+                `- ${i.name} (${i.category}): bought ${i.count}× total, spent ${i.totalSpent.toFixed(2)} ${currency}, avg ${i.avgPrice.toFixed(2)} ${currency} each`
+            )
+            .join("\n")
+        : "No item-level data available";
 
-    const prompt = `You are a sharp grocery savings analyst for a household app.
+    const indianContext = isINR
+      ? `
+IMPORTANT — this household shops in India (currency: INR). Apply India-specific knowledge:
+- Supermarkets in India (Lulu Hypermarket, Big Bazaar, Reliance Fresh, More, D-Mart) are often 20–40% pricier than local wet markets / sabzi mandis for fresh produce.
+- Bulk staples (dal, rice, atta, cooking oil) are significantly cheaper at wholesale or D-Mart vs branded packs.
+- Indian seasonal produce: mangoes (Apr–Jun), pomegranate (Oct–Feb), tomato (Nov–Jan is peak season, cheap), guava (Oct–Mar). Off-season prices spike 2–3×.
+- Common bulk-buy opportunities: 5 kg or 10 kg packs of rice/atta/dal, 5 L oil tins.
+- Local farms / kisan markets (farmer's markets) often sell vegetables at 40–60% of supermarket prices.
+- Do NOT mention: warehouse clubs (Costco/Sam's Club), avocados as a staple, dollar/pound amounts, growing food in $12 pots, or US/UK supermarkets.`
+      : "";
+
+    const prompt = `You are a grocery savings analyst. Analyse this household's ACTUAL purchase history and generate 4 personalised, specific, actionable money-saving insights.
+${indianContext}
 
 ACTUAL SPENDING DATA:
-Total this period: ${totalThisMonth.toFixed(2)} ${currency} across ${billCount} trips
-Currency: ${currency} (locale: ${locale ?? "en-US"})
+- Total this period: ${totalThisMonth.toFixed(2)} ${currency} across ${billCount} trip(s)
+- Currency: ${currency}
 
-TOP SPENDING CATEGORIES:
-${topCategoriesText}
+TOP SPENDING CATEGORIES (sorted by spend):
+${topCategoriesText || "No category data"}
 
 ACTUAL ITEMS PURCHASED (most expensive first):
 ${topItemsText}
 
-Generate exactly 4 hyper-specific, actionable savings suggestions. Rules:
-1. Reference ACTUAL item names from the list above wherever possible (e.g. "You bought Baby Spinach 3× this month")
-2. Give SPECIFIC dollar/currency amounts — use the actual prices from the data
-3. Include at least one "grow your own" tip (referencing a specific herb or vegetable they actually buy)
-4. Include at least one seasonal price alert (e.g. "avocado prices rise in winter — buy extra now")
-5. Include at least one bulk-buy tip for a protein or pantry item they actually purchased
-6. Make savings estimates realistic and specific (not round numbers like $50)
-7. Body text: 2-3 sentences, specific and data-driven. Never be vague.
+Generate exactly 4 insights. Each must:
+1. Reference ACTUAL items or categories from the data above (e.g. "You spent ₹842 on Chicken across 3 trips")
+2. Give SPECIFIC numbers — use actual prices from the data to estimate realistic savings
+3. Be genuinely actionable for this household, not generic advice
+4. Vary the type: price substitution, seasonal timing, bulk buying, local market vs supermarket — pick whichever types best fit their actual data
+5. Body: 2–3 sentences. Specific, data-driven, never vague. Mention actual item names and amounts.
+6. Savings estimate: realistic monthly saving in ${currency} based on their actual spend — NOT a round number
 
 Return ONLY valid JSON, no markdown:
 {
@@ -127,10 +143,10 @@ Return ONLY valid JSON, no markdown:
     {
       "id": "ins-1",
       "icon": "leaf-outline",
-      "title": "Concise title max 7 words",
-      "body": "2-3 sentences with specific item names and amounts from their data.",
+      "title": "Concise title, max 7 words",
+      "body": "2-3 specific sentences referencing their actual items and amounts.",
       "tag": "1-2 word label",
-      "saving": 18,
+      "saving": 240,
       "tagColor": "#dcfce7",
       "tagTextColor": "#15803d",
       "cta": "Short action"
@@ -138,8 +154,8 @@ Return ONLY valid JSON, no markdown:
   ]
 }
 
-Icon options: leaf-outline, pricetag-outline, cube-outline, calendar-outline, cart-outline, restaurant-outline, trending-down-outline, time-outline, flower-outline, sunny-outline
-Tag color pairs (pick varied): #dcfce7/#15803d, #fef9c3/#854d0e, #ede9fe/#6d28d9, #fff7ed/#c2410c, #dbeafe/#1d4ed8`;
+Icon options (pick best fit): leaf-outline, pricetag-outline, cube-outline, calendar-outline, cart-outline, restaurant-outline, trending-down-outline, time-outline, flower-outline, sunny-outline, storefront-outline, scale-outline
+Tag color pairs (pick 4 different ones): #dcfce7/#15803d, #fef9c3/#854d0e, #ede9fe/#6d28d9, #fff7ed/#c2410c, #dbeafe/#1d4ed8, #fce7f3/#9d174d`;
 
     const response = await fetch(`${openaiBase}/chat/completions`, {
       method: "POST",
@@ -148,8 +164,8 @@ Tag color pairs (pick varied): #dcfce7/#15803d, #fef9c3/#854d0e, #ede9fe/#6d28d9
         Authorization: `Bearer ${openaiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-5-mini",
-        max_completion_tokens: 1200,
+        model: "gpt-4.1-mini",
+        max_completion_tokens: 2000,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -164,6 +180,7 @@ Tag color pairs (pick varied): #dcfce7/#15803d, #fef9c3/#854d0e, #ede9fe/#6d28d9
     if (!jsonMatch) throw new Error("No JSON in response");
 
     const parsed = JSON.parse(jsonMatch[0]) as { insights: typeof DEFAULT_INSIGHTS };
+    logger.info({ count: parsed.insights?.length }, "AI insights generated");
     res.json(parsed);
   } catch (err) {
     logger.error({ err }, "Insights generation failed");

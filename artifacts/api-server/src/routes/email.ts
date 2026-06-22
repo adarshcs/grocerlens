@@ -301,10 +301,33 @@ router.post(
       text = htmlToText(body["html"]);
     }
     // If still empty, try parsing the raw MIME email field (SendGrid "Post raw MIME" option)
-    if (!text.trim() && body["email"]) {
+    if (body["email"]) {
       try {
         const parsed = await simpleParser(body["email"]);
-        text = parsed.text ?? (parsed.html ? htmlToText(parsed.html) : "");
+        // Extract body text
+        if (!text.trim()) {
+          text = parsed.text ?? (parsed.html ? htmlToText(parsed.html) : "");
+        }
+        // Also extract PDF attachments embedded in the MIME
+        if (parsed.attachments?.length) {
+          logger.info({ count: parsed.attachments.length }, "MIME attachments found");
+          for (const att of parsed.attachments) {
+            const isPdf =
+              att.contentType === "application/pdf" ||
+              att.filename?.toLowerCase().endsWith(".pdf");
+            if (isPdf && att.content) {
+              try {
+                const data = await pdfParse(att.content as Buffer);
+                if (data.text?.trim()) {
+                  text = (text + "\n" + data.text).trim();
+                  logger.info({ filename: att.filename, chars: data.text.length }, "PDF extracted from MIME attachment");
+                }
+              } catch (err) {
+                logger.warn({ err, filename: att.filename }, "Failed to parse MIME PDF attachment");
+              }
+            }
+          }
+        }
       } catch (err) {
         logger.warn({ err }, "Failed to parse raw MIME email");
       }

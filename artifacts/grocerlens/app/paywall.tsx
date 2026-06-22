@@ -2,7 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,73 +13,67 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
+import type { PurchasesPackage } from "react-native-purchases";
 
-const PLANS = [
-  {
-    id: "monthly",
-    label: "Monthly",
-    price: "₹99",
-    period: "/month",
-    annualEquiv: null,
-    highlight: false,
-    productId: "grocerlens_premium_monthly",
-  },
-  {
-    id: "annual",
-    label: "Annual",
-    price: "₹799",
-    period: "/year",
-    annualEquiv: "₹66.58/month",
-    highlight: true,
-    badge: "Best value · Save 33%",
-    productId: "grocerlens_premium_annual",
-  },
-];
-
-const FEATURES_FREE = [
-  "4 AI receipt scans/month",
-  "4 AI insight refreshes/month",
-  "Household sharing",
-  "Category breakdown",
-  "WhatsApp summary sharing",
-];
-
-const FEATURES_PREMIUM = [
-  "Unlimited AI receipt scans",
-  "Unlimited AI insights",
-  "Priority processing",
-  "Export spending data (CSV)",
-  "Early access to new features",
-  "Everything in Free",
+const FEATURES_TABLE = [
+  { label: "AI receipt scans", free: "4/mo", premium: "Unlimited" },
+  { label: "AI insights refresh", free: "4/mo", premium: "Unlimited" },
+  { label: "Household sharing", free: "✓", premium: "✓" },
+  { label: "Category breakdown", free: "✓", premium: "✓" },
+  { label: "CSV export", free: "—", premium: "✓" },
+  { label: "Priority processing", free: "—", premium: "✓" },
 ];
 
 export default function PaywallScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const [selectedPlan, setSelectedPlan] = useState<string>("annual");
-  const [loading, setLoading] = useState(false);
+  const { offerings, isLoading, purchase, restore, isPurchasing, isRestoring, isSubscribed } =
+    useSubscription();
 
   const topInset = Platform.OS === "web" ? 20 : insets.top;
 
-  async function handlePurchase(planId: string) {
-    setLoading(true);
+  const currentOffering = offerings?.current;
+  const availablePackages = currentOffering?.availablePackages ?? [];
+
+  const monthlyPkg = availablePackages.find((p) => p.packageType === "MONTHLY");
+  const annualPkg = availablePackages.find((p) => p.packageType === "ANNUAL");
+  const orderedPackages = [
+    ...(annualPkg ? [annualPkg] : []),
+    ...(monthlyPkg ? [monthlyPkg] : []),
+    ...availablePackages.filter(
+      (p) => p.packageType !== "MONTHLY" && p.packageType !== "ANNUAL"
+    ),
+  ];
+
+  const [selectedPkgId, setSelectedPkgId] = useState<string | null>(
+    annualPkg?.identifier ?? monthlyPkg?.identifier ?? null
+  );
+  const [confirmPkg, setConfirmPkg] = useState<PurchasesPackage | null>(null);
+
+  const selectedPkg =
+    availablePackages.find((p) => p.identifier === selectedPkgId) ?? orderedPackages[0] ?? null;
+
+  function isAnnual(pkg: PurchasesPackage) {
+    return pkg.packageType === "ANNUAL";
+  }
+
+  async function handleConfirmedPurchase(pkg: PurchasesPackage) {
+    setConfirmPkg(null);
     try {
-      Alert.alert(
-        "Coming soon",
-        "In-app purchases will be available once the app is published on the App Store and Google Play.\n\nFor now, contact us at support@grocerlens.app to set up early access.",
-        [{ text: "OK" }]
-      );
-    } finally {
-      setLoading(false);
+      await purchase(pkg);
+      router.back();
+    } catch (err: any) {
+      if (err?.userCancelled) return;
     }
   }
 
   async function handleRestore() {
-    Alert.alert(
-      "Restore purchase",
-      "This will be available once the app is published on the App Store and Google Play.",
-      [{ text: "OK" }]
-    );
+    try {
+      await restore();
+      if (isSubscribed) router.back();
+    } catch {
+    }
   }
 
   return (
@@ -112,75 +107,103 @@ export default function PaywallScreen() {
       {/* Plan selector */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Choose a plan</Text>
-        {PLANS.map((plan) => {
-          const isSelected = selectedPlan === plan.id;
-          return (
-            <TouchableOpacity
-              key={plan.id}
-              style={[
-                styles.planCard,
-                {
-                  backgroundColor: isSelected ? "#dcfce7" : colors.card,
-                  borderColor: isSelected ? "#15803d" : colors.border,
-                  borderWidth: isSelected ? 2 : 1,
-                },
-              ]}
-              onPress={() => setSelectedPlan(plan.id)}
-              activeOpacity={0.85}
-            >
-              {plan.badge && (
-                <View style={styles.planBadge}>
-                  <Text style={styles.planBadgeText}>{plan.badge}</Text>
-                </View>
-              )}
-              <View style={styles.planRow}>
-                <View
-                  style={[
-                    styles.planRadio,
-                    { borderColor: isSelected ? "#15803d" : colors.border },
-                  ]}
-                >
-                  {isSelected && <View style={styles.planRadioDot} />}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.planLabel, { color: colors.foreground }]}>{plan.label}</Text>
-                  {plan.annualEquiv && (
-                    <Text style={[styles.planSub, { color: colors.mutedForeground }]}>
-                      {plan.annualEquiv}
+
+        {isLoading ? (
+          <ActivityIndicator color="#15803d" style={{ marginVertical: 24 }} />
+        ) : orderedPackages.length === 0 ? (
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            No plans available right now.
+          </Text>
+        ) : (
+          orderedPackages.map((pkg) => {
+            const isSelected = (selectedPkgId ?? orderedPackages[0]?.identifier) === pkg.identifier;
+            const annual = isAnnual(pkg);
+            return (
+              <TouchableOpacity
+                key={pkg.identifier}
+                style={[
+                  styles.planCard,
+                  {
+                    backgroundColor: isSelected ? "#dcfce7" : colors.card,
+                    borderColor: isSelected ? "#15803d" : colors.border,
+                    borderWidth: isSelected ? 2 : 1,
+                  },
+                ]}
+                onPress={() => setSelectedPkgId(pkg.identifier)}
+                activeOpacity={0.85}
+              >
+                {annual && (
+                  <View style={styles.planBadge}>
+                    <Text style={styles.planBadgeText}>Best value · Save 33%</Text>
+                  </View>
+                )}
+                <View style={styles.planRow}>
+                  <View
+                    style={[
+                      styles.planRadio,
+                      { borderColor: isSelected ? "#15803d" : colors.border },
+                    ]}
+                  >
+                    {isSelected && <View style={styles.planRadioDot} />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.planLabel, { color: colors.foreground }]}>
+                      {pkg.product.title || (annual ? "Annual" : "Monthly")}
                     </Text>
-                  )}
+                    {annual && (
+                      <Text style={[styles.planSub, { color: colors.mutedForeground }]}>
+                        {pkg.product.priceString}/year
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.planPriceWrap}>
+                    <Text style={[styles.planPrice, { color: "#15803d" }]}>
+                      {pkg.product.priceString}
+                    </Text>
+                    <Text style={[styles.planPeriod, { color: colors.mutedForeground }]}>
+                      /{annual ? "year" : "month"}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.planPriceWrap}>
-                  <Text style={[styles.planPrice, { color: "#15803d" }]}>{plan.price}</Text>
-                  <Text style={[styles.planPeriod, { color: colors.mutedForeground }]}>
-                    {plan.period}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+              </TouchableOpacity>
+            );
+          })
+        )}
       </View>
 
       {/* CTA */}
       <TouchableOpacity
-        style={[styles.ctaBtn, { opacity: loading ? 0.7 : 1 }]}
-        onPress={() => handlePurchase(selectedPlan)}
-        disabled={loading}
+        style={[styles.ctaBtn, { opacity: isPurchasing || isLoading ? 0.7 : 1 }]}
+        onPress={() => selectedPkg && setConfirmPkg(selectedPkg)}
+        disabled={isPurchasing || isLoading || !selectedPkg}
         activeOpacity={0.85}
       >
-        <Ionicons name="sparkles" size={18} color="#ffffff" />
-        <Text style={styles.ctaText}>
-          {loading
-            ? "Processing…"
-            : `Get Premium · ${PLANS.find((p) => p.id === selectedPlan)?.price}${PLANS.find((p) => p.id === selectedPlan)?.period}`}
-        </Text>
+        {isPurchasing ? (
+          <ActivityIndicator color="#ffffff" />
+        ) : (
+          <>
+            <Ionicons name="sparkles" size={18} color="#ffffff" />
+            <Text style={styles.ctaText}>
+              {selectedPkg
+                ? `Get Premium · ${selectedPkg.product.priceString}/${isAnnual(selectedPkg) ? "yr" : "mo"}`
+                : "Get Premium"}
+            </Text>
+          </>
+        )}
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.restoreBtn} onPress={handleRestore}>
-        <Text style={[styles.restoreText, { color: colors.mutedForeground }]}>
-          Restore purchase
-        </Text>
+      <TouchableOpacity
+        style={styles.restoreBtn}
+        onPress={handleRestore}
+        disabled={isRestoring}
+      >
+        {isRestoring ? (
+          <ActivityIndicator color="#15803d" />
+        ) : (
+          <Text style={[styles.restoreText, { color: colors.mutedForeground }]}>
+            Restore purchase
+          </Text>
+        )}
       </TouchableOpacity>
 
       {/* Feature comparison */}
@@ -191,14 +214,7 @@ export default function PaywallScreen() {
             <Text style={[styles.featureColRight, { color: colors.mutedForeground }]}>Free</Text>
             <Text style={[styles.featureColRight, { color: "#15803d" }]}>Premium</Text>
           </View>
-          {[
-            { label: "AI receipt scans", free: "4/mo", premium: "Unlimited" },
-            { label: "AI insights refresh", free: "4/mo", premium: "Unlimited" },
-            { label: "Household sharing", free: "✓", premium: "✓" },
-            { label: "Category breakdown", free: "✓", premium: "✓" },
-            { label: "CSV export", free: "—", premium: "✓" },
-            { label: "Priority processing", free: "—", premium: "✓" },
-          ].map((row, i) => (
+          {FEATURES_TABLE.map((row, i) => (
             <View
               key={i}
               style={[
@@ -213,7 +229,10 @@ export default function PaywallScreen() {
               <Text
                 style={[
                   styles.featureColRight,
-                  { color: row.premium === "—" ? colors.mutedForeground : "#15803d", fontFamily: "Inter_600SemiBold" },
+                  {
+                    color: row.premium === "—" ? colors.mutedForeground : "#15803d",
+                    fontFamily: "Inter_600SemiBold",
+                  },
                 ]}
               >
                 {row.premium}
@@ -224,8 +243,47 @@ export default function PaywallScreen() {
       </View>
 
       <Text style={[styles.fine, { color: colors.mutedForeground }]}>
-        Subscriptions auto-renew. Cancel anytime. Prices shown in INR.
+        Subscriptions auto-renew. Cancel anytime in App Store / Play Store settings.
       </Text>
+
+      {/* Test-mode purchase confirmation modal */}
+      <Modal
+        visible={!!confirmPkg}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmPkg(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <Ionicons name="sparkles" size={28} color="#fbbf24" style={{ marginBottom: 8 }} />
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+              Confirm Purchase
+            </Text>
+            <Text style={[styles.modalBody, { color: colors.mutedForeground }]}>
+              {confirmPkg
+                ? `Subscribe to ${confirmPkg.product.title} for ${confirmPkg.product.priceString}/${isAnnual(confirmPkg) ? "year" : "month"}?`
+                : ""}
+            </Text>
+            <Text style={[styles.modalNote, { color: colors.mutedForeground }]}>
+              (Test store purchase — no real charge)
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: colors.secondary }]}
+                onPress={() => setConfirmPkg(null)}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.foreground }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: "#15803d" }]}
+                onPress={() => confirmPkg && handleConfirmedPurchase(confirmPkg)}
+              >
+                <Text style={[styles.modalBtnText, { color: "#fff" }]}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -291,6 +349,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    marginVertical: 16,
   },
   planCard: {
     borderRadius: 14,
@@ -363,12 +427,65 @@ const styles = StyleSheet.create({
   },
   featureRow: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 10 },
   featureCol: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
-  featureColRight: { width: 72, textAlign: "center", fontSize: 13, fontFamily: "Inter_400Regular" },
+  featureColRight: {
+    width: 72,
+    textAlign: "center",
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+  },
   fine: {
     fontSize: 11,
     fontFamily: "Inter_400Regular",
     textAlign: "center",
     paddingHorizontal: 24,
     marginBottom: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    gap: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    textAlign: "center",
+  },
+  modalBody: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  modalNote: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    fontStyle: "italic",
+    marginBottom: 8,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+    marginTop: 8,
+  },
+  modalBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  modalBtnText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
   },
 });

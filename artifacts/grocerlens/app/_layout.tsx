@@ -18,6 +18,14 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ExpenseProvider } from "@/context/ExpenseContext";
+import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
+import { Alert } from "react-native";
+
+try {
+  initializeRevenueCat();
+} catch (err: any) {
+  Alert.alert("RevenueCat Unavailable", err?.message ?? "Unknown error");
+}
 
 SplashScreen.preventAutoHideAsync();
 
@@ -121,11 +129,13 @@ export default function RootLayout() {
             <QueryClientProvider client={queryClient}>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
-                  <ExpenseProvider>
-                    <AuthGate />
-                    <DeepLinkHandler />
-                    <RootLayoutNav />
-                  </ExpenseProvider>
+                  <SubscriptionProvider>
+                    <ExpenseProvider>
+                      <AuthGate />
+                      <DeepLinkHandler />
+                      <RootLayoutNav />
+                    </ExpenseProvider>
+                  </SubscriptionProvider>
                 </KeyboardProvider>
               </GestureHandlerRootView>
             </QueryClientProvider>

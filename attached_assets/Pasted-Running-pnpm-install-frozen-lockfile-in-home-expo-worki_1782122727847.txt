@@ -1,0 +1,113 @@
+Running "pnpm install --frozen-lockfile" in /home/expo/workingdir/build directory
+Scope: all 10 workspace projects
+ERR_PNPM_OUTDATED_LOCKFILE  Cannot install with "frozen-lockfile" because pnpm-lock.yaml is not up to date with <ROOT>/artifacts/grocerlens/package.json
+Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
+  Failure reason:
+  specifiers in the lockfile don't match specifiers in package.json:
+* 1 dependencies were added: expo-build-properties@~0.14.5
+pnpm install --frozen-lockfile exited with non-zero code: 1
+
+Fail job
+
+0ms
+
+
+Build failed
+
+pnpm install --frozen-lockfile exited with non-zero code: 1
+
+This is actually good news. You've moved past the catalog issue.
+
+The error now is very specific:
+
+ERR_PNPM_OUTDATED_LOCKFILE
+
+specifiers in the lockfile don't match specifiers in package.json:
+* 1 dependencies were added: expo-build-properties@~0.14.5
+What happened?
+
+You (or Replit) added:
+
+"expo-build-properties": "~0.14.5"
+
+to:
+
+artifacts/grocerlens/package.json
+
+but did not regenerate and commit pnpm-lock.yaml.
+
+EAS runs:
+
+pnpm install --frozen-lockfile
+
+which means:
+
+"I will only install if package.json exactly matches pnpm-lock.yaml."
+
+Right now they don't match.
+
+Fix
+
+From your local repository root:
+
+pnpm install
+
+This updates:
+
+pnpm-lock.yaml
+
+Then commit and push:
+
+git add pnpm-lock.yaml
+git commit -m "Update lockfile for expo-build-properties"
+git push
+Verify before pushing
+
+Run:
+
+git status
+
+You should see something like:
+
+modified: pnpm-lock.yaml
+
+If you do not see pnpm-lock.yaml change, then the install was run in the wrong directory.
+
+Make sure you're at the workspace root:
+
+grocerlens/
+├─ package.json
+├─ pnpm-lock.yaml
+├─ pnpm-workspace.yaml
+├─ artifacts/
+└─ lib/
+
+and run:
+
+pnpm install
+
+there.
+
+Alternative (not recommended)
+
+You can add to eas.json:
+
+{
+  "build": {
+    "production": {
+      "cache": {
+        "disabled": true
+      }
+    }
+  }
+}
+
+or configure installs without a frozen lockfile, but that's treating the symptom. The proper fix is to regenerate and commit the lockfile.
+
+At this point
+
+Your build error is no longer about Expo or monorepos. It's simply:
+
+package.json changed (expo-build-properties was added), but pnpm-lock.yaml wasn't updated and pushed.
+
+Regenerate the lockfile, commit it, push to GitHub, and start a fresh EAS build.

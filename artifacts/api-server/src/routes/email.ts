@@ -1,6 +1,8 @@
 import { Router } from "express";
 import multer from "multer";
 import { simpleParser } from "mailparser";
+import { createRequire } from "node:module";
+const pdfParse = createRequire(import.meta.url)("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
 import { logger } from "../lib/logger";
 import { db } from "@workspace/db";
 import {
@@ -305,6 +307,26 @@ router.post(
         text = parsed.text ?? (parsed.html ? htmlToText(parsed.html) : "");
       } catch (err) {
         logger.warn({ err }, "Failed to parse raw MIME email");
+      }
+    }
+
+    // Extract text from any PDF attachments (SendGrid sends files via multer)
+    const files = (req.files ?? []) as Express.Multer.File[];
+    const pdfFiles = files.filter(
+      (f) => f.mimetype === "application/pdf" || f.originalname?.toLowerCase().endsWith(".pdf")
+    );
+    if (pdfFiles.length > 0) {
+      logger.info({ count: pdfFiles.length }, "PDF attachments found — extracting text");
+      for (const pdf of pdfFiles) {
+        try {
+          const data = await pdfParse(pdf.buffer);
+          if (data.text?.trim()) {
+            text = (text + "\n" + data.text).trim();
+            logger.info({ pdfName: pdf.originalname, chars: data.text.length }, "PDF text extracted");
+          }
+        } catch (err) {
+          logger.warn({ err, pdfName: pdf.originalname }, "Failed to parse PDF attachment");
+        }
       }
     }
 

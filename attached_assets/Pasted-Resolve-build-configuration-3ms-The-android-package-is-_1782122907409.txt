@@ -1,0 +1,122 @@
+Resolve build configuration
+
+3ms
+
+
+The "android.package" is required to be set in app config for builds triggered by GitHub integration. Learn more: https://docs.expo.dev/versions/latest/config/app/#package.
+
+Fail job
+
+1ms
+
+
+Build failed
+
+The "android.package" is required to be set in app config for builds triggered by GitHub integration. Learn more: https://docs.expo.dev/versions/latest/config/app/#package.
+
+Great — you've gotten past the pnpm issues. Now Expo is complaining about Android app configuration.
+
+The error:
+
+The "android.package" is required to be set in app config for builds triggered by GitHub integration.
+
+means your app.json or app.config.js is missing:
+
+{
+  "expo": {
+    "android": {
+      "package": "com.yourcompany.yourapp"
+    }
+  }
+}
+Find your Expo config
+
+Look for one of:
+
+artifacts/grocerlens/app.json
+artifacts/grocerlens/app.config.js
+artifacts/grocerlens/app.config.ts
+Add an Android package name
+
+Example:
+
+{
+  "expo": {
+    "name": "GrocerLens",
+    "slug": "grocerlens",
+    "android": {
+      "package": "com.adarshcs.grocerlens"
+    }
+  }
+}
+
+or
+
+{
+  "expo": {
+    "android": {
+      "package": "in.codegreen.grocerlens"
+    }
+  }
+}
+Rules for package names
+
+Valid:
+
+com.adarshcs.grocerlens
+in.codegreen.grocerlens
+com.codegreen.grocerlens
+
+Invalid:
+
+GrocerLens
+com.GrocerLens
+grocerlens
+
+Requirements:
+
+lowercase only
+at least two segments
+letters, numbers, underscores only
+cannot change easily after Play Store publication
+Recommended package name
+
+For your grocery/superfoods app, I'd use:
+
+in.codegreen.grocerlens
+
+or
+
+com.codegreen.grocerlens
+Example
+
+If your app.json currently looks like:
+
+{
+  "expo": {
+    "name": "GrocerLens",
+    "slug": "grocerlens"
+  }
+}
+
+change it to:
+
+{
+  "expo": {
+    "name": "GrocerLens",
+    "slug": "grocerlens",
+    "android": {
+      "package": "in.codegreen.grocerlens"
+    }
+  }
+}
+
+Then:
+
+git add .
+git commit -m "Add Android package name"
+git push
+
+and trigger another EAS build.
+
+If you paste the contents of your app.json (or app.config.ts), I can tell you the exact lines to add.

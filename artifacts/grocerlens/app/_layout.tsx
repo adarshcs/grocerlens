@@ -5,9 +5,11 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
+import { ClerkLoaded, ClerkProvider, useAuth } from "@clerk/expo";
+import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
-import { Stack, useRouter } from "expo-router";
+import { Redirect, Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -21,12 +23,13 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
+
 function DeepLinkHandler() {
   const router = useRouter();
 
   useEffect(() => {
     function handleUrl({ url }: { url: string }) {
-      // Match grocerlens://join/CODE or any URL containing /join/CODE or ?code=CODE
       const match =
         url.match(/[/=]join[/=?]([A-Za-z0-9]{4,8})/i) ||
         url.match(/code[=:]([A-Za-z0-9]{4,8})/i);
@@ -46,9 +49,29 @@ function DeepLinkHandler() {
   return null;
 }
 
+function AuthGate() {
+  const { isSignedIn, isLoaded } = useAuth();
+  const segments = useSegments();
+
+  const inAuthGroup = segments[0] === "(auth)";
+
+  if (!isLoaded) return null;
+
+  if (!isSignedIn && !inAuthGroup) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
+
+  if (isSignedIn && inAuthGroup) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return null;
+}
+
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="bill/[id]"
@@ -83,19 +106,24 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProvider>
-              <ExpenseProvider>
-                <DeepLinkHandler />
-                <RootLayoutNav />
-              </ExpenseProvider>
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </QueryClientProvider>
-      </ErrorBoundary>
-    </SafeAreaProvider>
+    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+      <ClerkLoaded>
+        <SafeAreaProvider>
+          <ErrorBoundary>
+            <QueryClientProvider client={queryClient}>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <ExpenseProvider>
+                    <AuthGate />
+                    <DeepLinkHandler />
+                    <RootLayoutNav />
+                  </ExpenseProvider>
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </QueryClientProvider>
+          </ErrorBoundary>
+        </SafeAreaProvider>
+      </ClerkLoaded>
+    </ClerkProvider>
   );
 }

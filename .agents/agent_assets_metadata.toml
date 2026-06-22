@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "h5V1poUP5MlFJKiJRJcfX"
@@ -18,3 +17,51 @@ id = "hD0r9YW98SmrJVIR6Y5bw"
 uri = "file://artifacts/grocerlens-deck/public/illust-family.png"
 type = "image"
 title = "family sharing illustration"
+
+[[generated]]
+id = "bHV_GEdmdt0D-KFPi7z8N"
+uri = "file://attached_assets/play_store/screenshot_1.png"
+type = "image"
+title = "play store screenshot home"
+
+[[generated]]
+id = "8US1xh4pNVk5R8huTEAod"
+uri = "file://attached_assets/play_store/screenshot_2.png"
+type = "image"
+title = "play store screenshot ai insights"
+
+[[generated]]
+id = "FpPaLsLscXgW1faFT_46L"
+uri = "file://attached_assets/play_store/feature_graphic.png"
+type = "image"
+title = "play store feature graphic"
+
+[[outputs]]
+id = "yGP974jWksNcMIhpZi5we"
+uri = "file://.local/outputs/Grocery-Insight-Pro.pptx"
+type = "slides"
+title = "Grocery Insight Pro.pptx"
+
+[[outputs]]
+id = "PS43cKjnEUNcTusTJDFyU"
+uri = "file://.local/outputs/Grocery-Insight-Pro.pdf"
+type = "pdf"
+title = "Grocery Insight Pro.pdf"
+
+[[outputs]]
+id = "RXA78-FsRTXR48YNRabhT"
+uri = "file://attached_assets/play_store/screenshot_1.png"
+type = "image"
+title = "Screenshot 1 — Home Dashboard"
+
+[[outputs]]
+id = "9Y5YdNRX7_xjVTXmaZWyJ"
+uri = "file://attached_assets/play_store/screenshot_2.png"
+type = "image"
+title = "Screenshot 2 — AI Insights"
+
+[[outputs]]
+id = "8ClTgrvF-6ml-z9Jk0rQt"
+uri = "file://attached_assets/play_store/feature_graphic.png"
+type = "image"
+title = "Feature Graphic (1024×500)"

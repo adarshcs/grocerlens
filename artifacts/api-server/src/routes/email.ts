@@ -1,5 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
+import { simpleParser } from "mailparser";
 import { logger } from "../lib/logger";
 import { db } from "@workspace/db";
 import {
@@ -8,6 +9,25 @@ import {
   billItemsTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+
+/** Strip HTML tags and decode common entities to plain text */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/?(p|div|tr|li|h[1-6])[^>]*>/gi, "\n")
+    .replace(/<td[^>]*>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -252,7 +272,21 @@ router.post(
     const body = req.body as Record<string, string>;
     const from = body["from"] ?? "";
     const subject = body["subject"] ?? "";
-    const text = body["text"] ?? body["html"] ?? "";
+
+    // Extract text: prefer plain text, fall back to HTML→text, then raw MIME parse
+    let text = body["text"] ?? "";
+    if (!text.trim() && body["html"]) {
+      text = htmlToText(body["html"]);
+    }
+    // If still empty, try parsing the raw MIME email field (SendGrid "Post raw MIME" option)
+    if (!text.trim() && body["email"]) {
+      try {
+        const parsed = await simpleParser(body["email"]);
+        text = parsed.text ?? (parsed.html ? htmlToText(parsed.html) : "");
+      } catch (err) {
+        logger.warn({ err }, "Failed to parse raw MIME email");
+      }
+    }
 
     let toAddress = body["to"] ?? "";
     if (body["envelope"]) {
@@ -264,7 +298,7 @@ router.post(
     toAddress = toAddress.replace(/[<>]/g, "").trim();
     const localPart = toAddress.split("@")[0] ?? "";
 
-    logger.info({ from, to: toAddress, subject }, "Inbound email received");
+    logger.info({ from, to: toAddress, subject, textLength: text.length }, "Inbound email received");
 
     if (!localPart) {
       logger.warn({ toAddress }, "Could not extract local part from to address");
@@ -285,7 +319,7 @@ router.post(
     }
 
     if (!text.trim()) {
-      logger.warn({ from, subject }, "Email body is empty");
+      logger.warn({ from, subject }, "Email body is empty after all extraction attempts");
       res.json({ status: "ok", parsed: false, reason: "empty_body" });
       return;
     }

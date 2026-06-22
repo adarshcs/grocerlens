@@ -1,0 +1,31 @@
+kind = "slides"
+previewPath = "/grocerlens-deck/"
+title = "GrocerLens Pitch Deck"
+version = "1.0.0"
+id = "artifacts/grocerlens-deck"
+router = "path"
+
+[[integratedSkills]]
+name = "slides"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/grocerlens-deck/" ]
+localPort = 20567
+
+[services.development]
+run = "pnpm --filter @workspace/grocerlens-deck run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/grocerlens-deck", "run", "build" ]
+publicDir = "artifacts/grocerlens-deck/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20567"
+BASE_PATH = "/grocerlens-deck/"

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567801",
+    "position": 1,
+    "filepath": "src/pages/slides/Slide1Title.tsx",
+    "title": "GrocerLens",
+    "description": "Title slide — product overview and tagline",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567802",
+    "position": 2,
+    "filepath": "src/pages/slides/Slide2Problem.tsx",
+    "title": "The Problem",
+    "description": "Four problem cards — grocery spending is a blind spot",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567803",
+    "position": 3,
+    "filepath": "src/pages/slides/Slide3Product.tsx",
+    "title": "The Product",
+    "description": "Feature list with family sharing illustration",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567804",
+    "position": 4,
+    "filepath": "src/pages/slides/Slide4BusinessModel.tsx",
+    "title": "Business Model",
+    "description": "Freemium tier cards — Free vs Premium pricing",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567805",
+    "position": 5,
+    "filepath": "src/pages/slides/Slide5TechArch.tsx",
+    "title": "Technical Architecture",
+    "description": "Dark slide — three-column tech stack breakdown",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567806",
+    "position": 6,
+    "filepath": "src/pages/slides/Slide6Closing.tsx",
+    "title": "GrocerLens",
+    "description": "Closing slide — tagline, App Store + Play, contact",
+    "speakerNotes": ""
+  }
+]

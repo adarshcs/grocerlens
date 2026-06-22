@@ -10,6 +10,26 @@ import {
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+/** Extract the first http/https URL from a block of text */
+function extractUrl(text: string): string | null {
+  const m = text.match(/https?:\/\/[^\s<>"']+/);
+  return m ? m[0].replace(/[.,;!?]+$/, "") : null;
+}
+
+/** Fetch a receipt page URL and return its text content */
+async function fetchReceiptPage(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; GrocerLens/1.0)",
+      "Accept": "text/html,application/xhtml+xml",
+    },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const html = await res.text();
+  return htmlToText(html);
+}
+
 /** Strip HTML tags and decode common entities to plain text */
 function htmlToText(html: string): string {
   return html
@@ -316,6 +336,21 @@ router.post(
       logger.warn({ localPart }, "No household matched this email prefix");
       res.json({ status: "ok", parsed: false, reason: "no_household_match" });
       return;
+    }
+
+    // If the body is empty or very short, look for a receipt URL and fetch it
+    const receiptUrl = extractUrl(text);
+    if (receiptUrl && (text.trim().length < 500 || !text.trim())) {
+      logger.info({ receiptUrl }, "Email body contains a receipt URL — fetching page");
+      try {
+        const pageText = await fetchReceiptPage(receiptUrl);
+        if (pageText.length > 50) {
+          text = pageText;
+          logger.info({ textLength: text.length }, "Receipt page fetched successfully");
+        }
+      } catch (err) {
+        logger.warn({ err, receiptUrl }, "Failed to fetch receipt URL");
+      }
     }
 
     if (!text.trim()) {

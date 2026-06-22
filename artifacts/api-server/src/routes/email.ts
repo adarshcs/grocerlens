@@ -3,7 +3,14 @@ import multer from "multer";
 import { simpleParser } from "mailparser";
 import { createRequire } from "node:module";
 const _pdfMod = createRequire(import.meta.url)("pdf-parse") as any;
-const pdfParse = (typeof _pdfMod === "function" ? _pdfMod : (_pdfMod.default ?? _pdfMod.pdfParse)) as (buf: Buffer) => Promise<{ text: string }>;
+const PDFParse: new (opts: object) => { load(buf: Buffer): Promise<void>; getText(): Promise<string> } =
+  _pdfMod.PDFParse ?? _pdfMod.default?.PDFParse ?? _pdfMod.default;
+
+async function parsePdfBuffer(buf: Buffer): Promise<string> {
+  const parser = new PDFParse({});
+  await parser.load(buf);
+  return parser.getText();
+}
 import { logger } from "../lib/logger";
 import { db } from "@workspace/db";
 import {
@@ -318,10 +325,10 @@ router.post(
               att.filename?.toLowerCase().endsWith(".pdf");
             if (isPdf && att.content) {
               try {
-                const data = await pdfParse(att.content as Buffer);
-                if (data.text?.trim()) {
-                  text = (text + "\n" + data.text).trim();
-                  logger.info({ filename: att.filename, chars: data.text.length }, "PDF extracted from MIME attachment");
+                const pdfText = await parsePdfBuffer(att.content as Buffer);
+                if (pdfText?.trim()) {
+                  text = (text + "\n" + pdfText).trim();
+                  logger.info({ filename: att.filename, chars: pdfText.length }, "PDF extracted from MIME attachment");
                 }
               } catch (err) {
                 logger.warn({ err, filename: att.filename }, "Failed to parse MIME PDF attachment");
@@ -352,10 +359,10 @@ router.post(
       logger.info({ count: pdfFiles.length }, "PDF attachments found — extracting text");
       for (const pdf of pdfFiles) {
         try {
-          const data = await pdfParse(pdf.buffer);
-          if (data.text?.trim()) {
-            text = (text + "\n" + data.text).trim();
-            logger.info({ pdfName: pdf.originalname, chars: data.text.length }, "PDF text extracted");
+          const pdfText = await parsePdfBuffer(pdf.buffer);
+          if (pdfText?.trim()) {
+            text = (text + "\n" + pdfText).trim();
+            logger.info({ pdfName: pdf.originalname, chars: pdfText.length }, "PDF text extracted");
           }
         } catch (err) {
           logger.warn({ err, pdfName: pdf.originalname }, "Failed to parse PDF attachment");
@@ -372,10 +379,10 @@ router.post(
         if (field.startsWith("%PDF")) {
           try {
             const buf = Buffer.from(field, "binary");
-            const data = await pdfParse(buf);
-            if (data.text?.trim()) {
-              text = (text + "\n" + data.text).trim();
-              logger.info({ field: `attachment${i}`, chars: data.text.length }, "PDF extracted from body field");
+            const pdfText = await parsePdfBuffer(buf);
+            if (pdfText?.trim()) {
+              text = (text + "\n" + pdfText).trim();
+              logger.info({ field: `attachment${i}`, chars: pdfText.length }, "PDF extracted from body field");
             }
           } catch (err) {
             logger.warn({ err, field: `attachment${i}` }, "Failed to parse PDF body field");

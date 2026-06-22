@@ -1,1 +1,4 @@
 - [pdf-parse v2 API](pdf-parse-v2.md) — class-based (PDFParse), data in constructor, getText() returns LineStore not string; SendGrid PDF arrives in raw MIME `email` field
+- [RevenueCat setup](revenuecat-setup.md) — GrocerLens RC project IDs, product identifiers, and INR/USD pricing decisions
+- [Freemium quota design](freemium-quota.md) — quota table key format, 402 response shape, email soft-count vs hard-block, isPremium flag
+- [WhatsApp web fix](wa-web-fix.md) — wa.me blocks iframes; must use window.open('_blank') on Platform.OS==="web"

@@ -181,6 +181,10 @@ export default function InsightsScreen() {
       savingLine;
 
     const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    if (Platform.OS === "web") {
+      window.open(url, "_blank");
+      return;
+    }
     const canOpen = await Linking.canOpenURL(url);
     if (canOpen) {
       Linking.openURL(url);

@@ -77,6 +77,12 @@ export default function FamilyScreen() {
       return;
     }
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(inviteMessage)}`;
+    if (Platform.OS === "web") {
+      window.open(url, "_blank");
+      setWhatsappPhone("");
+      setShowWhatsApp(false);
+      return;
+    }
     const canOpen = await Linking.canOpenURL(url);
     if (canOpen) {
       Linking.openURL(url);

@@ -1,0 +1,121 @@
+cript 'eas-build-pre-install' is present in package.json, running it...
+> workspace@0.0.0 eas-build-pre-install /home/expo/workingdir/build
+> rm -f pnpm-lock.yaml && pnpm install --no-frozen-lockfile
+Scope: all 10 workspace projects
+/home/expo/workingdir/build/artifacts/api-server:
+ ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER  @types/node@catalog: isn't supported by any available resolver.
+This error happened while installing a direct dependency of /home/expo/workingdir/build/artifacts/api-server
+ELIFECYCLE  Command failed with exit code 1.
+WARN   Local package.json exists, but node_modules missing, did you mean to install?
+pnpm run eas-build-pre-install exited with non-zero code: 1
+
+Fail job
+
+1ms
+
+
+Build failed
+
+pnpm run eas-build-pre-install exited with non-zero code: 1
+
+Now we've found the real problem.
+
+The build is failing because your workspace uses pnpm catalogs:
+
+@types/node@catalog:
+
+and Expo's build environment is not resolving them correctly.
+
+The giveaway is:
+
+ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER
+@types/node@catalog:
+
+and this line:
+
+rm -f pnpm-lock.yaml && pnpm install --no-frozen-lockfile
+
+is actually making things worse by deleting the lockfile before install.
+
+What's happening
+
+Your monorepo probably contains dependencies like:
+
+{
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "zod": "catalog:"
+  }
+}
+
+and a root package.json with something like:
+
+{
+  "pnpm": {
+    "catalog": {
+      "@types/node": "^22.x",
+      "typescript": "^5.x"
+    }
+  }
+}
+
+Expo EAS is choking on those catalog references.
+
+Fix #1 (preferred)
+
+Search your repo for:
+
+catalog:
+
+You'll likely find it in:
+
+artifacts/api-server/package.json
+lib/*/package.json
+artifacts/grocerlens/package.json
+
+Replace entries such as:
+
+"@types/node": "catalog:"
+
+with actual versions:
+
+"@types/node": "^24.0.0"
+
+and similarly:
+
+"typescript": "^5.9.3"
+"zod": "^3.25.76"
+
+Then:
+
+pnpm install
+git add .
+git commit -m "Replace catalog dependencies"
+git push
+Fix #2
+
+Remove this script from the root package.json:
+
+"eas-build-pre-install": "rm -f pnpm-lock.yaml && pnpm install --no-frozen-lockfile"
+
+Deleting the lockfile during an EAS build is almost never what you want.
+
+Either remove it entirely or change it to:
+
+"eas-build-pre-install": "pnpm install --no-frozen-lockfile"
+Quickest way to diagnose
+
+From the repository root, run:
+
+grep -R "catalog:" .
+
+(or GitHub search for catalog:)
+
+and paste the results.
+
+I strongly suspect artifacts/api-server/package.json contains:
+
+"@types/node": "catalog:"
+
+which is exactly what the build log is complaining about. Once those catalog: references are replaced with concrete versions, the EAS build should get much further.

@@ -310,8 +310,17 @@ router.post(
       }
     }
 
-    // Extract text from any PDF attachments (SendGrid sends files via multer)
+    // Diagnostics: log what SendGrid actually sent
     const files = (req.files ?? []) as Express.Multer.File[];
+    logger.info({
+      bodyKeys: Object.keys(body),
+      filesCount: files.length,
+      fileNames: files.map((f) => `${f.fieldname}:${f.originalname}:${f.mimetype}`),
+      attachmentCount: body["attachments"],
+      attachmentInfo: body["attachment-info"]?.slice(0, 300),
+    }, "Email payload diagnostic");
+
+    // Extract text from any PDF attachments (SendGrid sends files via multer)
     const pdfFiles = files.filter(
       (f) => f.mimetype === "application/pdf" || f.originalname?.toLowerCase().endsWith(".pdf")
     );
@@ -326,6 +335,27 @@ router.post(
           }
         } catch (err) {
           logger.warn({ err, pdfName: pdf.originalname }, "Failed to parse PDF attachment");
+        }
+      }
+    }
+
+    // Fallback: try body["attachment1"] etc. (SendGrid sometimes sends as raw form fields)
+    if (!text.trim()) {
+      for (let i = 1; i <= 10; i++) {
+        const field = body[`attachment${i}`];
+        if (!field) break;
+        // If it starts with %PDF it's a raw PDF buffer encoded as latin1
+        if (field.startsWith("%PDF")) {
+          try {
+            const buf = Buffer.from(field, "binary");
+            const data = await pdfParse(buf);
+            if (data.text?.trim()) {
+              text = (text + "\n" + data.text).trim();
+              logger.info({ field: `attachment${i}`, chars: data.text.length }, "PDF extracted from body field");
+            }
+          } catch (err) {
+            logger.warn({ err, field: `attachment${i}` }, "Failed to parse PDF body field");
+          }
         }
       }
     }

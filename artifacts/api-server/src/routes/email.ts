@@ -7,10 +7,17 @@ const PDFParse: new (opts: object) => { load(buf: Buffer): Promise<void>; getTex
   _pdfMod.PDFParse ?? _pdfMod.default?.PDFParse ?? _pdfMod.default;
 
 async function parsePdfBuffer(buf: Buffer): Promise<string> {
-  // pdf-parse v2: options are passed to pdfjs getDocument — data goes in constructor
+  // pdf-parse v2: data passed via constructor (goes to pdfjs getDocument)
+  // getText() returns a LineStore object {pages:[{text,num},...]} not a plain string
   const parser = new PDFParse({ data: new Uint8Array(buf) } as object);
-  await parser.load();
-  return parser.getText();
+  const result: any = await parser.getText();
+  if (typeof result === "string") return result;
+  if (result && Array.isArray(result.pages)) {
+    return result.pages
+      .map((p: any) => (typeof p === "string" ? p : p.text ?? ""))
+      .join("\n");
+  }
+  return String(result ?? "");
 }
 import { logger } from "../lib/logger";
 import { db } from "@workspace/db";

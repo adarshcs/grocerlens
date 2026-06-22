@@ -112,6 +112,14 @@ export default function InsightsScreen() {
   async function loadAIInsights() {
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const stores = [...new Set(bills.map((b) => b.store).filter(Boolean))];
+    const recentDates = bills
+      .slice()
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5)
+      .map((b) => b.date);
+
     try {
       const response = await fetch(`${API_BASE}/api/insights`, {
         method: "POST",
@@ -123,6 +131,10 @@ export default function InsightsScreen() {
           topItems,
           currencyCode: currency.currencyCode,
           locale: currency.locale,
+          stores,
+          memberCount: familyMembers.length,
+          recentDates,
+          currentDate: new Date().toISOString().split("T")[0],
         }),
       });
       if (!response.ok) throw new Error("Failed to load insights");

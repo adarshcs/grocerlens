@@ -19,6 +19,17 @@ function generateInviteCode(): string {
   return code;
 }
 
+function generateReceiptEmailPrefix(): string {
+  const suffix = Math.random().toString(36).substring(2, 10);
+  return `gl-${suffix}`;
+}
+
+function getReceiptEmail(prefix: string | null | undefined, req: Parameters<Parameters<typeof router.get>[1]>[0]): string {
+  if (!prefix) return "";
+  const domain = process.env["SENDGRID_INBOUND_DOMAIN"] ?? getPublicDomain(req);
+  return `${prefix}@${domain}`;
+}
+
 function getPublicDomain(req: Parameters<Parameters<typeof router.get>[1]>[0]): string {
   const domains = process.env.REPLIT_DOMAINS;
   if (domains) return domains.split(",")[0].trim();
@@ -66,6 +77,7 @@ router.post("/households", async (req, res) => {
     res.json({
       householdId: household.id,
       inviteCode: household.inviteCode,
+      receiptEmail: getReceiptEmail(household.receiptEmailPrefix, req),
       bills: billsWithItems,
       members,
     });
@@ -74,6 +86,7 @@ router.post("/households", async (req, res) => {
 
   const householdId = crypto.randomUUID();
   const inviteCode = generateInviteCode();
+  const receiptEmailPrefix = generateReceiptEmailPrefix();
   const memberId = crypto.randomUUID();
   const initials = ownerName
     .split(" ")
@@ -85,6 +98,7 @@ router.post("/households", async (req, res) => {
     id: householdId,
     inviteCode,
     ownerDeviceId: deviceId,
+    receiptEmailPrefix,
   });
 
   await db.insert(householdMembersTable).values({
@@ -97,7 +111,7 @@ router.post("/households", async (req, res) => {
     isOwner: true,
   });
 
-  res.json({ householdId, inviteCode, bills: [], members: [] });
+  res.json({ householdId, inviteCode, receiptEmail: getReceiptEmail(receiptEmailPrefix, req), bills: [], members: [] });
 });
 
 // GET /api/households/device/:deviceId — get household for a device
@@ -144,6 +158,7 @@ router.get("/households/device/:deviceId", async (req, res) => {
   res.json({
     householdId: household.id,
     inviteCode: household.inviteCode,
+    receiptEmail: getReceiptEmail(household.receiptEmailPrefix, req),
     isOwner: household.ownerDeviceId === deviceId,
     bills: billsWithItems,
     members,
@@ -271,6 +286,7 @@ router.post("/households/:id/join", async (req, res) => {
     success: true,
     householdId: id,
     inviteCode: household.inviteCode,
+    receiptEmail: getReceiptEmail(household.receiptEmailPrefix, req),
     isOwner: household.ownerDeviceId === deviceId,
     bills: billsWithItems,
     members: updatedMembers,
@@ -301,7 +317,17 @@ router.get("/households/:id/sync", async (req, res) => {
     })
   );
 
-  res.json({ bills: billsWithItems, members });
+  const [household] = await db
+    .select()
+    .from(householdsTable)
+    .where(eq(householdsTable.id, id))
+    .limit(1);
+
+  res.json({
+    bills: billsWithItems,
+    members,
+    receiptEmail: household ? getReceiptEmail(household.receiptEmailPrefix, req) : "",
+  });
 });
 
 // POST /api/households/:id/bills — add a bill

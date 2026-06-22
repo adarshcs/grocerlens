@@ -287,12 +287,7 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
 
         if (smsRaw !== null) setSmsMonitoringState(smsRaw === "true");
 
-        let email = emailRaw;
-        if (!email) {
-          email = generateEmailAddress();
-          await AsyncStorage.setItem(STORAGE_KEYS.EMAIL_ADDRESS, email);
-        }
-        setEmailAddress(email);
+        if (emailRaw) setEmailAddress(emailRaw);
 
         let devId = storedDeviceId;
         if (!devId) {
@@ -328,17 +323,22 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
               const data = (await res.json()) as {
                 householdId: string;
                 inviteCode: string;
+                receiptEmail?: string;
                 bills: Record<string, unknown>[];
                 members: Record<string, unknown>[];
               };
               setHouseholdId(data.householdId);
               setInviteCode(data.inviteCode);
               setIsHouseholdOwner(true);
+              if (data.receiptEmail) {
+                setEmailAddress(data.receiptEmail);
+              }
 
               await AsyncStorage.multiSet([
                 [STORAGE_KEYS.HOUSEHOLD_ID, data.householdId],
                 [STORAGE_KEYS.INVITE_CODE, data.inviteCode],
                 [STORAGE_KEYS.IS_OWNER, "true"],
+                ...(data.receiptEmail ? [[STORAGE_KEYS.EMAIL_ADDRESS, data.receiptEmail] as [string, string]] : []),
               ]);
 
               // If first launch, seed sample bills with device-scoped IDs to avoid conflicts
@@ -419,14 +419,19 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
     const data = (await res.json()) as {
       bills: Record<string, unknown>[];
       members: Record<string, unknown>[];
+      receiptEmail?: string;
     };
     const newBills = serverBillsToLocal(data.bills);
     const newMembers = serverMembersToLocal(data.members, devId);
     setBills(newBills);
     setFamilyMembers(newMembers);
+    if (data.receiptEmail) {
+      setEmailAddress(data.receiptEmail);
+    }
     AsyncStorage.multiSet([
       [STORAGE_KEYS.BILLS, JSON.stringify(newBills)],
       [STORAGE_KEYS.MEMBERS, JSON.stringify(newMembers)],
+      ...(data.receiptEmail ? [[STORAGE_KEYS.EMAIL_ADDRESS, data.receiptEmail] as [string, string]] : []),
     ]).catch(() => {});
   }
 

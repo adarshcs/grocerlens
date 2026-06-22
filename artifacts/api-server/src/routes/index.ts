@@ -3,6 +3,7 @@ import healthRouter from "./health";
 import ocrRouter from "./ocr";
 import insightsRouter from "./insights";
 import emailRouter from "./email";
+import householdsRouter from "./households";
 
 const router: IRouter = Router();
 
@@ -10,5 +11,6 @@ router.use(healthRouter);
 router.use(ocrRouter);
 router.use(insightsRouter);
 router.use(emailRouter);
+router.use(householdsRouter);
 
 export default router;

@@ -5,9 +5,14 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Platform } from "react-native";
+
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : "";
 
 export type CaptureMethod = "sms" | "share" | "email" | "camera" | "manual";
 
@@ -47,11 +52,16 @@ interface ExpenseContextType {
   smsMonitoringEnabled: boolean;
   emailAddress: string;
   isLoading: boolean;
+  deviceId: string;
+  householdId: string | null;
+  inviteCode: string | null;
+  isHouseholdOwner: boolean;
   addBill: (bill: Omit<Bill, "id" | "addedAt">) => Promise<void>;
   removeBill: (id: string) => Promise<void>;
   addFamilyMember: (member: Omit<FamilyMember, "id">) => Promise<void>;
   removeFamilyMember: (id: string) => Promise<void>;
   setSmsMonitoringEnabled: (enabled: boolean) => Promise<void>;
+  joinHousehold: (code: string, name: string) => Promise<{ success: boolean; error?: string }>;
   totalThisMonth: number;
   totalLastMonth: number;
   categoryTotals: Record<string, number>;
@@ -182,6 +192,10 @@ const STORAGE_KEYS = {
   SMS_ENABLED: "@grocerlens/sms_enabled",
   EMAIL_ADDRESS: "@grocerlens/email_address",
   SEEDED: "@grocerlens/seeded",
+  DEVICE_ID: "@grocerlens/device_id",
+  HOUSEHOLD_ID: "@grocerlens/household_id",
+  INVITE_CODE: "@grocerlens/invite_code",
+  IS_OWNER: "@grocerlens/is_owner",
 };
 
 function generateId(): string {
@@ -191,6 +205,43 @@ function generateId(): string {
 function generateEmailAddress(): string {
   const suffix = Math.random().toString(36).substr(2, 8);
   return `gl-${suffix}@bills.grocerlens.app`;
+}
+
+function generateDeviceId(): string {
+  return "dev_" + Date.now().toString(36) + Math.random().toString(36).substr(2, 8);
+}
+
+function serverBillsToLocal(serverBills: Record<string, unknown>[]): Bill[] {
+  return serverBills.map((b) => ({
+    id: b.id as string,
+    store: b.store as string,
+    date: b.date as string,
+    total: b.total as number,
+    captureMethod: (b.captureMethod as CaptureMethod) ?? "manual",
+    addedAt: b.addedAt ? new Date(b.addedAt as string).getTime() : Date.now(),
+    items: ((b.items as Record<string, unknown>[]) ?? []).map((item) => ({
+      id: item.id as string,
+      name: item.name as string,
+      qty: (item.qty as string) ?? "",
+      price: item.price as number,
+      category: (item.category as string) ?? "Pantry",
+    })),
+  }));
+}
+
+function serverMembersToLocal(
+  serverMembers: Record<string, unknown>[],
+  myDeviceId: string
+): FamilyMember[] {
+  return serverMembers.map((m) => ({
+    id: m.id as string,
+    name: m.deviceId === myDeviceId ? "You" : (m.name as string),
+    initials: m.initials as string,
+    color: (m.color as string) ?? "#15803d",
+    isOwner: m.isOwner as boolean,
+    email: m.email as string | undefined,
+    phone: m.phone as string | undefined,
+  }));
 }
 
 const ExpenseContext = createContext<ExpenseContextType | null>(null);
@@ -203,52 +254,126 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
   );
   const [emailAddress, setEmailAddress] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [deviceId, setDeviceId] = useState<string>("");
+  const [householdId, setHouseholdId] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [isHouseholdOwner, setIsHouseholdOwner] = useState(true);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    async function load() {
+    async function init() {
       try {
         const [
-          billsRaw,
-          membersRaw,
           smsRaw,
           emailRaw,
           seededRaw,
+          storedDeviceId,
+          storedHouseholdId,
+          storedInviteCode,
+          storedIsOwner,
+          billsRaw,
+          membersRaw,
         ] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.BILLS),
-          AsyncStorage.getItem(STORAGE_KEYS.MEMBERS),
           AsyncStorage.getItem(STORAGE_KEYS.SMS_ENABLED),
           AsyncStorage.getItem(STORAGE_KEYS.EMAIL_ADDRESS),
           AsyncStorage.getItem(STORAGE_KEYS.SEEDED),
+          AsyncStorage.getItem(STORAGE_KEYS.DEVICE_ID),
+          AsyncStorage.getItem(STORAGE_KEYS.HOUSEHOLD_ID),
+          AsyncStorage.getItem(STORAGE_KEYS.INVITE_CODE),
+          AsyncStorage.getItem(STORAGE_KEYS.IS_OWNER),
+          AsyncStorage.getItem(STORAGE_KEYS.BILLS),
+          AsyncStorage.getItem(STORAGE_KEYS.MEMBERS),
         ]);
+
+        if (smsRaw !== null) setSmsMonitoringState(smsRaw === "true");
+
+        let email = emailRaw;
+        if (!email) {
+          email = generateEmailAddress();
+          await AsyncStorage.setItem(STORAGE_KEYS.EMAIL_ADDRESS, email);
+        }
+        setEmailAddress(email);
+
+        let devId = storedDeviceId;
+        if (!devId) {
+          devId = generateDeviceId();
+          await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_ID, devId);
+        }
+        setDeviceId(devId);
 
         const isSeeded = seededRaw === "true";
 
-        const storedBills: Bill[] = billsRaw ? JSON.parse(billsRaw) : [];
-        const storedMembers: FamilyMember[] = membersRaw
-          ? JSON.parse(membersRaw)
-          : [];
+        if (storedHouseholdId && storedInviteCode) {
+          setHouseholdId(storedHouseholdId);
+          setInviteCode(storedInviteCode);
+          setIsHouseholdOwner(storedIsOwner !== "false");
 
-        if (!isSeeded) {
-          await AsyncStorage.setItem(STORAGE_KEYS.BILLS, JSON.stringify(SAMPLE_BILLS));
-          await AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(SAMPLE_MEMBERS));
-          await AsyncStorage.setItem(STORAGE_KEYS.SEEDED, "true");
-          setBills(SAMPLE_BILLS);
-          setFamilyMembers(SAMPLE_MEMBERS);
+          const cachedBills: Bill[] = billsRaw ? JSON.parse(billsRaw) : [];
+          const cachedMembers: FamilyMember[] = membersRaw ? JSON.parse(membersRaw) : [];
+          setBills(cachedBills);
+          setFamilyMembers(cachedMembers);
+
+          // Sync from server in background
+          syncFromServerInternal(storedHouseholdId, devId).catch(() => {});
         } else {
-          setBills(storedBills);
-          setFamilyMembers(storedMembers);
-        }
+          // No household yet — create one on server
+          const ownerName = "You";
+          try {
+            const res = await fetch(`${API_BASE}/api/households`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ deviceId: devId, ownerName }),
+            });
+            if (res.ok) {
+              const data = (await res.json()) as {
+                householdId: string;
+                inviteCode: string;
+                bills: Record<string, unknown>[];
+                members: Record<string, unknown>[];
+              };
+              setHouseholdId(data.householdId);
+              setInviteCode(data.inviteCode);
+              setIsHouseholdOwner(true);
 
-        if (smsRaw !== null) {
-          setSmsMonitoringState(smsRaw === "true");
-        }
+              await AsyncStorage.multiSet([
+                [STORAGE_KEYS.HOUSEHOLD_ID, data.householdId],
+                [STORAGE_KEYS.INVITE_CODE, data.inviteCode],
+                [STORAGE_KEYS.IS_OWNER, "true"],
+              ]);
 
-        if (emailRaw) {
-          setEmailAddress(emailRaw);
-        } else {
-          const newEmail = generateEmailAddress();
-          await AsyncStorage.setItem(STORAGE_KEYS.EMAIL_ADDRESS, newEmail);
-          setEmailAddress(newEmail);
+              // If first launch, seed sample bills
+              if (!isSeeded) {
+                const seedBills = SAMPLE_BILLS;
+                const seedMembers = SAMPLE_MEMBERS;
+
+                for (const bill of seedBills) {
+                  fetch(`${API_BASE}/api/households/${data.householdId}/bills`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ bill, deviceId: devId }),
+                  }).catch(() => {});
+                }
+
+                await AsyncStorage.multiSet([
+                  [STORAGE_KEYS.BILLS, JSON.stringify(seedBills)],
+                  [STORAGE_KEYS.MEMBERS, JSON.stringify(seedMembers)],
+                  [STORAGE_KEYS.SEEDED, "true"],
+                ]);
+                setBills(seedBills);
+                setFamilyMembers(seedMembers);
+              } else {
+                const cachedBills: Bill[] = billsRaw ? JSON.parse(billsRaw) : [];
+                const cachedMembers: FamilyMember[] = membersRaw ? JSON.parse(membersRaw) : [];
+                setBills(cachedBills.length ? cachedBills : SAMPLE_BILLS);
+                setFamilyMembers(cachedMembers.length ? cachedMembers : SAMPLE_MEMBERS);
+              }
+            } else {
+              // Server unavailable — use local cache
+              fallbackToLocal(billsRaw, membersRaw, isSeeded);
+            }
+          } catch {
+            fallbackToLocal(billsRaw, membersRaw, isSeeded);
+          }
         }
       } catch {
         setBills(SAMPLE_BILLS);
@@ -257,25 +382,94 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       }
     }
-    load();
+
+    function fallbackToLocal(
+      billsRaw: string | null,
+      membersRaw: string | null,
+      isSeeded: boolean
+    ) {
+      if (!isSeeded) {
+        setBills(SAMPLE_BILLS);
+        setFamilyMembers(SAMPLE_MEMBERS);
+        AsyncStorage.multiSet([
+          [STORAGE_KEYS.BILLS, JSON.stringify(SAMPLE_BILLS)],
+          [STORAGE_KEYS.MEMBERS, JSON.stringify(SAMPLE_MEMBERS)],
+          [STORAGE_KEYS.SEEDED, "true"],
+        ]);
+      } else {
+        setBills(billsRaw ? JSON.parse(billsRaw) : SAMPLE_BILLS);
+        setFamilyMembers(membersRaw ? JSON.parse(membersRaw) : SAMPLE_MEMBERS);
+      }
+    }
+
+    init();
   }, []);
 
-  const addBill = useCallback(async (bill: Omit<Bill, "id" | "addedAt">) => {
-    const newBill: Bill = { ...bill, id: generateId(), addedAt: Date.now() };
-    setBills((prev) => {
-      const updated = [newBill, ...prev];
-      AsyncStorage.setItem(STORAGE_KEYS.BILLS, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
+  async function syncFromServerInternal(hid: string, devId: string) {
+    const res = await fetch(`${API_BASE}/api/households/${hid}/sync`);
+    if (!res.ok) return;
+    const data = (await res.json()) as {
+      bills: Record<string, unknown>[];
+      members: Record<string, unknown>[];
+    };
+    const newBills = serverBillsToLocal(data.bills);
+    const newMembers = serverMembersToLocal(data.members, devId);
+    setBills(newBills);
+    setFamilyMembers(newMembers);
+    AsyncStorage.multiSet([
+      [STORAGE_KEYS.BILLS, JSON.stringify(newBills)],
+      [STORAGE_KEYS.MEMBERS, JSON.stringify(newMembers)],
+    ]).catch(() => {});
+  }
 
-  const removeBill = useCallback(async (id: string) => {
-    setBills((prev) => {
-      const updated = prev.filter((b) => b.id !== id);
-      AsyncStorage.setItem(STORAGE_KEYS.BILLS, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
+  // Poll for updates from other household members
+  useEffect(() => {
+    if (!householdId || !deviceId) return;
+    pollRef.current = setInterval(() => {
+      syncFromServerInternal(householdId, deviceId).catch(() => {});
+    }, 30000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [householdId, deviceId]);
+
+  const addBill = useCallback(
+    async (bill: Omit<Bill, "id" | "addedAt">) => {
+      const newBill: Bill = { ...bill, id: generateId(), addedAt: Date.now() };
+      setBills((prev) => {
+        const updated = [newBill, ...prev];
+        AsyncStorage.setItem(STORAGE_KEYS.BILLS, JSON.stringify(updated));
+        return updated;
+      });
+
+      // Sync to server
+      if (householdId && deviceId) {
+        fetch(`${API_BASE}/api/households/${householdId}/bills`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bill: newBill, deviceId }),
+        }).catch(() => {});
+      }
+    },
+    [householdId, deviceId]
+  );
+
+  const removeBill = useCallback(
+    async (id: string) => {
+      setBills((prev) => {
+        const updated = prev.filter((b) => b.id !== id);
+        AsyncStorage.setItem(STORAGE_KEYS.BILLS, JSON.stringify(updated));
+        return updated;
+      });
+
+      if (householdId) {
+        fetch(`${API_BASE}/api/households/${householdId}/bills/${id}`, {
+          method: "DELETE",
+        }).catch(() => {});
+      }
+    },
+    [householdId]
+  );
 
   const addFamilyMember = useCallback(async (member: Omit<FamilyMember, "id">) => {
     const newMember: FamilyMember = {
@@ -302,6 +496,62 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
     setSmsMonitoringState(enabled);
     await AsyncStorage.setItem(STORAGE_KEYS.SMS_ENABLED, String(enabled));
   }, []);
+
+  const joinHousehold = useCallback(
+    async (code: string, name: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const infoRes = await fetch(
+          `${API_BASE}/api/households/code/${code.toUpperCase()}`
+        );
+        if (!infoRes.ok) {
+          return { success: false, error: "Invalid invite code. Please check and try again." };
+        }
+        const info = (await infoRes.json()) as { householdId: string };
+
+        const joinRes = await fetch(
+          `${API_BASE}/api/households/${info.householdId}/join`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ deviceId, name }),
+          }
+        );
+        if (!joinRes.ok) {
+          return { success: false, error: "Failed to join. Please try again." };
+        }
+        const data = (await joinRes.json()) as {
+          success: boolean;
+          householdId: string;
+          inviteCode: string;
+          isOwner: boolean;
+          bills: Record<string, unknown>[];
+          members: Record<string, unknown>[];
+        };
+
+        setHouseholdId(data.householdId);
+        setInviteCode(data.inviteCode);
+        setIsHouseholdOwner(data.isOwner);
+
+        const newBills = serverBillsToLocal(data.bills);
+        const newMembers = serverMembersToLocal(data.members, deviceId);
+        setBills(newBills);
+        setFamilyMembers(newMembers);
+
+        await AsyncStorage.multiSet([
+          [STORAGE_KEYS.HOUSEHOLD_ID, data.householdId],
+          [STORAGE_KEYS.INVITE_CODE, data.inviteCode],
+          [STORAGE_KEYS.IS_OWNER, String(data.isOwner)],
+          [STORAGE_KEYS.BILLS, JSON.stringify(newBills)],
+          [STORAGE_KEYS.MEMBERS, JSON.stringify(newMembers)],
+        ]);
+
+        return { success: true };
+      } catch {
+        return { success: false, error: "Network error. Please try again." };
+      }
+    },
+    [deviceId]
+  );
 
   const now = new Date();
   const thisMonthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -360,11 +610,16 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
         smsMonitoringEnabled,
         emailAddress,
         isLoading,
+        deviceId,
+        householdId,
+        inviteCode,
+        isHouseholdOwner,
         addBill,
         removeBill,
         addFamilyMember,
         removeFamilyMember,
         setSmsMonitoringEnabled,
+        joinHousehold,
         totalThisMonth,
         totalLastMonth,
         categoryTotals,

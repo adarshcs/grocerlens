@@ -349,15 +349,7 @@ router.post(
       }
     }
 
-    // Diagnostics: log what SendGrid actually sent
     const files = (req.files ?? []) as Express.Multer.File[];
-    logger.info({
-      bodyKeys: Object.keys(body),
-      filesCount: files.length,
-      fileNames: files.map((f) => `${f.fieldname}:${f.originalname}:${f.mimetype}`),
-      attachmentCount: body["attachments"],
-      attachmentInfo: body["attachment-info"]?.slice(0, 300),
-    }, "Email payload diagnostic");
 
     // Extract text from any PDF attachments (SendGrid sends files via multer)
     const pdfFiles = files.filter(

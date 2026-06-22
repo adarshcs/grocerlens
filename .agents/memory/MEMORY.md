@@ -1,0 +1,1 @@
+- [pdf-parse v2 API](pdf-parse-v2.md) — class-based (PDFParse), data in constructor, getText() returns LineStore not string; SendGrid PDF arrives in raw MIME `email` field

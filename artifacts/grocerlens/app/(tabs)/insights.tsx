@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import * as Linking from "expo-linking";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -25,10 +26,10 @@ const DEFAULT_INSIGHTS: Insight[] = [
   {
     id: "ins-1",
     icon: "leaf-outline",
-    title: "Grow your own leafy greens",
-    body: "You spent significant amounts on spinach, kale, and lettuce this month. A small indoor herb kit (~25 in your currency one-time) pays for itself in 6 weeks.",
+    title: "Grow your own cherry tomatoes",
+    body: "Cherry tomatoes appear frequently in your shopping. A $12 pot + seeds yields ~2kg/month, saving you the equivalent of 3–4 pints at supermarket prices — payback in under 6 weeks.",
     tag: "Grow at home",
-    saving: 18,
+    saving: 22,
     tagColor: "#dcfce7",
     tagTextColor: "#15803d",
     cta: "See guide",
@@ -36,10 +37,10 @@ const DEFAULT_INSIGHTS: Insight[] = [
   {
     id: "ins-2",
     icon: "pricetag-outline",
-    title: "Switch to store-brand dairy",
-    body: "Store-brand milk, yogurt, and cheese average 22% cheaper than name brands with comparable nutrition. You could save ~10 units on your monthly dairy spend.",
+    title: "Switch dairy to store brand",
+    body: "Your dairy spend is a top category. Store-brand milk, yogurt and cheese average 22% cheaper with comparable nutrition — a consistent saving every shop.",
     tag: "Quick win",
-    saving: 10,
+    saving: 12,
     tagColor: "#fef9c3",
     tagTextColor: "#854d0e",
     cta: "Compare",
@@ -47,23 +48,24 @@ const DEFAULT_INSIGHTS: Insight[] = [
   {
     id: "ins-3",
     icon: "cube-outline",
-    title: "Bulk-buy protein and freeze",
-    body: "Warehouse clubs price chicken 40–50% cheaper per kilogram. Buying in bulk and portioning for the freezer is a major saver each month.",
+    title: "Bulk-buy chicken and freeze",
+    body: "Chicken appears across multiple trips at full retail price. A 10 lb warehouse club pack costs 40–50% less per pound — portion and freeze for the same convenience.",
     tag: "Bulk buy",
-    saving: 40,
+    saving: 38,
     tagColor: "#ede9fe",
     tagTextColor: "#6d28d9",
     cta: "Add reminder",
   },
   {
     id: "ins-4",
-    icon: "calendar-outline",
-    title: "Shop mid-week for lower prices",
-    body: "Produce prices are typically 10–15% lower on Tuesday–Wednesday when stores restock. Shifting your shopping day can reduce your weekly bill noticeably.",
-    tag: "Timing tip",
+    icon: "trending-down-outline",
+    title: "Avocado prices drop mid-season",
+    body: "Avocado prices typically fall 30–40% in late summer. Buying extra when they're cheap and freezing halves lets you lock in the lower price year-round.",
+    tag: "Price alert",
+    saving: 15,
     tagColor: "#fff7ed",
     tagTextColor: "#c2410c",
-    cta: "Got it",
+    cta: "Set reminder",
   },
 ];
 
@@ -71,12 +73,41 @@ export default function InsightsScreen() {
   const colors = useColors();
   const currency = useCurrency();
   const insets = useSafeAreaInsets();
-  const { bills, categoryTotals, totalThisMonth } = useExpenses();
+  const { bills, categoryTotals, totalThisMonth, familyMembers } = useExpenses();
   const [insights, setInsights] = useState<Insight[]>(DEFAULT_INSIGHTS);
   const [loading, setLoading] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const totalSaving = insights.reduce((s, ins) => s + (ins.saving ?? 0), 0);
+
+  // Compute item-level aggregates for AI
+  const topItems = useMemo(() => {
+    const map: Record<
+      string,
+      { name: string; category: string; totalSpent: number; count: number }
+    > = {};
+    bills.forEach((b) => {
+      b.items
+        .filter((i) => i.category !== "Tax")
+        .forEach((item) => {
+          const key = item.name.toLowerCase().trim();
+          if (!map[key]) {
+            map[key] = {
+              name: item.name,
+              category: item.category,
+              totalSpent: 0,
+              count: 0,
+            };
+          }
+          map[key].totalSpent += item.price;
+          map[key].count += 1;
+        });
+    });
+    return Object.values(map)
+      .map((i) => ({ ...i, avgPrice: i.totalSpent / i.count }))
+      .sort((a, b) => b.totalSpent - a.totalSpent)
+      .slice(0, 15);
+  }, [bills]);
 
   async function loadAIInsights() {
     setLoading(true);
@@ -89,12 +120,13 @@ export default function InsightsScreen() {
           totalThisMonth,
           categoryTotals,
           billCount: bills.length,
+          topItems,
           currencyCode: currency.currencyCode,
           locale: currency.locale,
         }),
       });
       if (!response.ok) throw new Error("Failed to load insights");
-      const data = await response.json();
+      const data = (await response.json()) as { insights?: Insight[] };
       if (data.insights?.length) {
         setInsights(data.insights);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -103,6 +135,39 @@ export default function InsightsScreen() {
       Alert.alert("Could not refresh", "Showing cached suggestions.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // WhatsApp share summary
+  async function shareViaWhatsApp() {
+    const topCats = Object.entries(categoryTotals)
+      .filter(([c]) => c !== "Tax")
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3)
+      .map(([cat, v]) => `${cat}: ${currency.format(v)}`)
+      .join(", ");
+
+    const savingLine = insights[0]
+      ? `\n💡 Top tip: ${insights[0].title} — save ~${currency.format(insights[0].saving ?? 0)}/mo`
+      : "";
+
+    const message =
+      `🛒 *GrocerLens — ${new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" })}*\n\n` +
+      `💰 Total spent: ${currency.format(totalThisMonth)}\n` +
+      `📦 ${bills.length} shopping trips\n` +
+      `👥 ${familyMembers.length} member${familyMembers.length !== 1 ? "s" : ""}\n\n` +
+      `Top categories: ${topCats}` +
+      savingLine;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    const canOpen = await Linking.canOpenURL(url);
+    if (canOpen) {
+      Linking.openURL(url);
+    } else {
+      Alert.alert(
+        "WhatsApp not found",
+        "Please make sure WhatsApp is installed on your device."
+      );
     }
   }
 
@@ -123,10 +188,7 @@ export default function InsightsScreen() {
     >
       {/* Header */}
       <View
-        style={[
-          styles.header,
-          { backgroundColor: colors.primary, paddingTop: topInset + 16 },
-        ]}
+        style={[styles.header, { backgroundColor: colors.primary, paddingTop: topInset + 16 }]}
       >
         <View style={styles.headerTop}>
           <View>
@@ -157,19 +219,80 @@ export default function InsightsScreen() {
         </View>
       </View>
 
+      {/* Top items spotlight */}
+      {topItems.length > 0 && (
+        <View
+          style={[
+            styles.spotlightCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.spotlightHeader}>
+            <Ionicons name="stats-chart" size={15} color={colors.primary} />
+            <Text style={[styles.spotlightTitle, { color: colors.foreground }]}>
+              Your top purchases
+            </Text>
+          </View>
+          {topItems.slice(0, 4).map((item, i) => (
+            <View key={item.name}>
+              {i > 0 && (
+                <View style={[styles.spotDivider, { backgroundColor: colors.border }]} />
+              )}
+              <View style={styles.spotItemRow}>
+                <View
+                  style={[
+                    styles.spotRank,
+                    { backgroundColor: i === 0 ? "#dcfce7" : colors.secondary },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.spotRankText,
+                      { color: i === 0 ? "#15803d" : colors.mutedForeground },
+                    ]}
+                  >
+                    #{i + 1}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.spotName, { color: colors.foreground }]}>
+                    {item.name}
+                  </Text>
+                  <Text style={[styles.spotSub, { color: colors.mutedForeground }]}>
+                    {item.category} · bought {item.count}×
+                  </Text>
+                </View>
+                <Text style={[styles.spotTotal, { color: colors.primary }]}>
+                  {currency.format(item.totalSpent)}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
       {/* Insights */}
-      <View style={{ paddingTop: 16 }}>
+      <View style={{ paddingTop: 4 }}>
         {insights.map((insight) => (
           <InsightCard key={insight.id} insight={insight} />
         ))}
       </View>
 
+      {/* Tap to refresh hint */}
+      <TouchableOpacity
+        style={[styles.refreshHint, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+        onPress={loadAIInsights}
+        disabled={loading}
+      >
+        <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
+        <Text style={[styles.refreshHintText, { color: colors.mutedForeground }]}>
+          {loading ? "Generating personalised tips…" : "Tap to regenerate with AI · based on your actual items"}
+        </Text>
+      </TouchableOpacity>
+
       {/* Monthly trend chart */}
       <View
-        style={[
-          styles.chartCard,
-          { backgroundColor: colors.card, borderColor: colors.border },
-        ]}
+        style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}
       >
         <Text style={[styles.chartTitle, { color: colors.foreground }]}>Monthly trend</Text>
         <View style={styles.chartBars}>
@@ -180,7 +303,7 @@ export default function InsightsScreen() {
                   style={[
                     styles.barFill,
                     {
-                      height: `${h}%` as any,
+                      height: `${h}%` as unknown as number,
                       backgroundColor: i === 5 ? colors.primary : colors.secondary,
                     },
                   ]}
@@ -194,17 +317,11 @@ export default function InsightsScreen() {
         </View>
       </View>
 
-      {/* WhatsApp share */}
+      {/* WhatsApp share — now functional */}
       <TouchableOpacity
         style={styles.whatsappCard}
         activeOpacity={0.8}
-        onPress={() =>
-          Alert.alert(
-            "Share via WhatsApp",
-            "Send your monthly summary to all household members on WhatsApp. This feature is coming in the next update.",
-            [{ text: "Got it" }]
-          )
-        }
+        onPress={shareViaWhatsApp}
       >
         <View style={styles.whatsappIcon}>
           <Ionicons name="logo-whatsapp" size={24} color="#ffffff" />
@@ -212,7 +329,7 @@ export default function InsightsScreen() {
         <View style={styles.whatsappText}>
           <Text style={styles.whatsappTitle}>Share with household</Text>
           <Text style={styles.whatsappDesc}>
-            Send this month's insights via WhatsApp to all members
+            Send this month's summary + top tip via WhatsApp
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.8)" />
@@ -265,6 +382,59 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.9)",
     fontSize: 14,
     fontFamily: "Inter_500Medium",
+    flex: 1,
+  },
+  spotlightCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  spotlightHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    padding: 14,
+    paddingBottom: 10,
+  },
+  spotlightTitle: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+  },
+  spotDivider: { height: 1, marginHorizontal: 14 },
+  spotItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  spotRank: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  spotRankText: { fontSize: 11, fontFamily: "Inter_700Bold" },
+  spotName: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  spotSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
+  spotTotal: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  refreshHint: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  refreshHintText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
     flex: 1,
   },
   chartCard: {
@@ -323,10 +493,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  whatsappText: {
-    flex: 1,
-    gap: 3,
-  },
+  whatsappText: { flex: 1, gap: 3 },
   whatsappTitle: {
     color: "#ffffff",
     fontSize: 14,

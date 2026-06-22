@@ -341,9 +341,17 @@ export function ExpenseProvider({ children }: { children: React.ReactNode }) {
                 [STORAGE_KEYS.IS_OWNER, "true"],
               ]);
 
-              // If first launch, seed sample bills
+              // If first launch, seed sample bills with device-scoped IDs to avoid conflicts
               if (!isSeeded) {
-                const seedBills = SAMPLE_BILLS;
+                const prefix = devId.slice(-8);
+                const seedBills = SAMPLE_BILLS.map((bill, bi) => ({
+                  ...bill,
+                  id: `${prefix}-s${bi + 1}`,
+                  items: bill.items.map((item, ii) => ({
+                    ...item,
+                    id: `${prefix}-s${bi + 1}-i${ii + 1}`,
+                  })),
+                }));
                 const seedMembers = SAMPLE_MEMBERS;
 
                 for (const bill of seedBills) {

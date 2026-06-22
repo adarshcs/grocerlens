@@ -1,8 +1,10 @@
+import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import { useCurrency } from "@/hooks/useCurrency";
 
-const CATEGORY_COLORS: Record<string, string> = {
+export const CATEGORY_COLORS: Record<string, string> = {
   Meat: "#ef4444",
   Seafood: "#f97316",
   Produce: "#22c55e",
@@ -18,16 +20,18 @@ const CATEGORY_COLORS: Record<string, string> = {
   Other: "#6b7280",
 };
 
-function getCategoryColor(cat: string): string {
+export function getCategoryColor(cat: string): string {
   return CATEGORY_COLORS[cat] ?? CATEGORY_COLORS.Other;
 }
 
 interface CategoryBarProps {
   categoryTotals: Record<string, number>;
+  onCategoryPress?: (category: string) => void;
 }
 
-export function CategoryBar({ categoryTotals }: CategoryBarProps) {
+export function CategoryBar({ categoryTotals, onCategoryPress }: CategoryBarProps) {
   const colors = useColors();
+  const currency = useCurrency();
 
   const sorted = useMemo(
     () =>
@@ -45,37 +49,56 @@ export function CategoryBar({ categoryTotals }: CategoryBarProps) {
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <Text style={[styles.title, { color: colors.foreground }]}>By category</Text>
-      {/* Stacked bar */}
+
+      {/* Stacked bar — tappable segments */}
       <View style={styles.stackedBar}>
         {sorted.map(([cat, val]) => (
-          <View
+          <TouchableOpacity
             key={cat}
             style={[
               styles.segment,
-              {
-                flex: val / grandTotal,
-                backgroundColor: getCategoryColor(cat),
-              },
+              { flex: val / grandTotal, backgroundColor: getCategoryColor(cat) },
             ]}
+            onPress={() => onCategoryPress?.(cat)}
+            activeOpacity={onCategoryPress ? 0.7 : 1}
           />
         ))}
       </View>
-      {/* Legend */}
+
+      {/* Legend rows */}
       <View style={styles.legend}>
-        {sorted.map(([cat, val]) => (
-          <View key={cat} style={styles.legendItem}>
-            <View style={[styles.dot, { backgroundColor: getCategoryColor(cat) }]} />
-            <View style={styles.legendText}>
-              <Text style={[styles.catName, { color: colors.foreground }]}>{cat}</Text>
-              <Text style={[styles.catAmount, { color: colors.mutedForeground }]}>
-                ${val.toFixed(0)}
+        {sorted.map(([cat, val]) => {
+          const color = getCategoryColor(cat);
+          const pct = Math.round((val / grandTotal) * 100);
+          return (
+            <TouchableOpacity
+              key={cat}
+              style={styles.legendItem}
+              onPress={() => onCategoryPress?.(cat)}
+              activeOpacity={onCategoryPress ? 0.65 : 1}
+            >
+              <View style={[styles.dot, { backgroundColor: color }]} />
+              <View style={styles.legendText}>
+                <Text style={[styles.catName, { color: colors.foreground }]}>
+                  {cat}
+                </Text>
+                <Text style={[styles.catAmount, { color: colors.mutedForeground }]}>
+                  {currency.format(val)}
+                </Text>
+              </View>
+              <Text style={[styles.catPct, { color: colors.mutedForeground }]}>
+                {pct}%
               </Text>
-            </View>
-            <Text style={[styles.catPct, { color: colors.mutedForeground }]}>
-              {Math.round((val / grandTotal) * 100)}%
-            </Text>
-          </View>
-        ))}
+              {onCategoryPress && (
+                <Ionicons
+                  name="chevron-forward"
+                  size={13}
+                  color={colors.mutedForeground}
+                />
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -106,12 +129,14 @@ const styles = StyleSheet.create({
   },
   legend: {
     marginTop: 12,
-    gap: 10,
+    gap: 4,
   },
   legendItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   dot: {
     width: 8,

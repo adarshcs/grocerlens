@@ -58,6 +58,10 @@ function RootLayoutNav() {
         name="join"
         options={{ headerShown: false, presentation: "modal" }}
       />
+      <Stack.Screen
+        name="category/[name]"
+        options={{ headerShown: false, presentation: "card" }}
+      />
     </Stack>
   );
 }

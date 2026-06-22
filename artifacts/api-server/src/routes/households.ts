@@ -324,27 +324,33 @@ router.post("/households/:id/bills", async (req, res) => {
     return;
   }
 
-  await db.insert(householdBillsTable).values({
-    id: bill.id,
-    householdId: id,
-    addedByDeviceId: deviceId,
-    store: bill.store,
-    date: bill.date,
-    total: bill.total,
-    captureMethod: bill.captureMethod,
-  });
+  await db
+    .insert(householdBillsTable)
+    .values({
+      id: bill.id,
+      householdId: id,
+      addedByDeviceId: deviceId,
+      store: bill.store,
+      date: bill.date,
+      total: bill.total,
+      captureMethod: bill.captureMethod,
+    })
+    .onConflictDoNothing();
 
   if (bill.items && bill.items.length > 0) {
-    await db.insert(billItemsTable).values(
-      bill.items.map((item) => ({
-        id: item.id,
-        billId: bill.id,
-        name: item.name,
-        qty: item.qty || "",
-        price: item.price,
-        category: item.category || "Pantry",
-      }))
-    );
+    await db
+      .insert(billItemsTable)
+      .values(
+        bill.items.map((item) => ({
+          id: item.id,
+          billId: bill.id,
+          name: item.name,
+          qty: item.qty || "",
+          price: item.price,
+          category: item.category || "Pantry",
+        }))
+      )
+      .onConflictDoNothing();
   }
 
   res.json({ success: true, billId: bill.id });

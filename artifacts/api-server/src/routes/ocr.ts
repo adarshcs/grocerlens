@@ -99,8 +99,8 @@ Include a Tax item if tax appears. Use today's date if date is not visible.`;
         Authorization: `Bearer ${openaiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-5-mini",
-        max_completion_tokens: 1500,
+        model: "gpt-4.1-mini",
+        max_completion_tokens: 4000,
         messages: [
           {
             role: "user",

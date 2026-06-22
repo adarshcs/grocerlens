@@ -89,18 +89,19 @@ function generateId(): string {
 }
 
 const CATEGORY_MAP: [RegExp, string][] = [
-  [/chicken|beef|pork|turkey|lamb|steak|sausage|bacon|ham|brisket/i, "Meat"],
-  [/fish|salmon|shrimp|tuna|cod|tilapia|halibut|crab|lobster|scallop/i, "Seafood"],
-  [/milk|cheese|yogurt|butter|cream|cottage|kefir|whey/i, "Dairy"],
-  [/apple|banana|tomato|lettuce|spinach|carrot|onion|potato|broccoli|avocado|berry|berries|grape|orange|lemon|lime|mango|pepper|cucumber|zucchini|mushroom|celery|arugula|kale|chard/i, "Produce"],
-  [/rice|oat|cereal|granola|quinoa|barley|cornmeal|grits/i, "Grains"],
-  [/bread|bagel|muffin|croissant|roll|bun|baguette|sourdough|wrap|tortilla|pita/i, "Bakery"],
-  [/pasta|sauce|canned|beans|lentil|soup|broth|oil|vinegar|spice|condiment|ketchup|mustard|mayo|salsa|flour|sugar|honey|jam|peanut|almond butter/i, "Pantry"],
-  [/juice|water|soda|coffee|tea|latte|espresso|brew|sparkling|kombucha|smoothie|drink|beverage/i, "Drinks"],
-  [/chip|cookie|cracker|pretzel|popcorn|candy|chocolate|snack|bar|granola bar/i, "Snacks"],
-  [/frozen|ice cream|gelato|sorbet|popsicle/i, "Frozen"],
-  [/turkey|salami|prosciutto|pepperoni|deli|cold cut|sliced/i, "Deli"],
-  [/tax|vat|gst/i, "Tax"],
+  [/\btax\b|\bvat\b|\bgst\b/i, "Tax"],
+  // Use word boundaries for meat — avoids "steak-knife" → Meat
+  [/\bchicken\b|\bbeef\b|\bpork\b|\bturkey\b|\blamb\b|\bmutton\b|\bsteak\b|\bsausage\b|\bbacon\b|\bham\b|\bbrisket\b|\bkeema\b|\bminced\b|\bgoat\b/i, "Meat"],
+  [/\bfish\b|\bsalmon\b|\bshrimp\b|\btuna\b|\bcod\b|\bprawn\b|\bcrab\b|\blocster\b|\bscallop\b|\bhilsa\b|\brohu\b|\bcatla\b/i, "Seafood"],
+  [/\bmilk\b|\bcheese\b|\byogurt\b|\bcurd\b|\bbutter\b|\bcream\b|\bghee\b|\bpaneer\b|\bkhoa\b|\bwhey\b/i, "Dairy"],
+  // Produce: includes chilli/chili, green leafy veg, Indian produce
+  [/\bapple\b|\bbanana\b|\btomato\b|\blettuce\b|\bspinach\b|\bcarrot\b|\bonion\b|\bpotato\b|\bbroccoli\b|\bavocado\b|\bberry\b|\bberries\b|\bgrape\b|\borange\b|\blemon\b|\blime\b|\bmango\b|\bpepper\b|\bcucumber\b|\bmushroom\b|\bcelery\b|\bkale\b|\bchilli\b|\bchili\b|\bgreen\s+chilli\b|\bcapsicum\b|\bbrinjal\b|\baudergine\b|\bokra\b|\bbittergourd\b|\bdrumstick\b|\bcolocasia\b|\bmethi\b|\bcoriander\b|\bmint\b|\bcabbage\b|\bcauliflower\b|\bpeas\b|\bgarlic\b|\bginger\b|\bcoconut\b|\bpapaya\b|\bpineapple\b|\bguava\b|\bpomegranate\b|\bwatermelon\b|\bbeetroot\b|\bradish\b|\bturnip\b|\bknol-khol\b|\bsnakegourd\b|\bridgegourd\b/i, "Produce"],
+  [/\brice\b|\boat\b|\bcereal\b|\bquinoa\b|\bbarley\b|\bwheat\b|\brava\b|\bsuji\b|\bmaida\b|\batta\b|\bbread\b|\bbagel\b|\bbun\b|\bsourdough\b|\btortilla\b|\bpita\b|\bchapati\b|\broti\b|\bbiscuit\b|\bmuffin\b|\bcroissant\b/i, "Bakery"],
+  [/\bpasta\b|\bnoodle\b|\bsauce\b|\bcanned\b|\bbeans\b|\blentil\b|\bdal\b|\bsoup\b|\bbroth\b|\boil\b|\bvinegar\b|\bspice\b|\bcondiment\b|\bketchup\b|\bmustard\b|\bmayo\b|\bsalsa\b|\bflour\b|\bsugar\b|\bhoney\b|\bjam\b|\bpickle\b|\bpapad\b|\bchutney\b|\bmasala\b|\bturmeric\b|\bcumin\b|\bcardamom\b|\bclove\b|\bpeanut\b/i, "Pantry"],
+  [/\bjuice\b|\bwater\b|\bsoda\b|\bcoffee\b|\btea\b|\blatte\b|\bespresso\b|\bsparkling\b|\bkombucha\b|\bsmoothie\b|\bdrink\b|\bbeverage\b|\bnimbu\b|\blassi\b|\bsharbat\b/i, "Drinks"],
+  [/\bchip\b|\bcookie\b|\bcracker\b|\bpopcorn\b|\bcandy\b|\bchocolate\b|\bsnack\b|\bnamkeen\b|\bmixture\b|\bhalwa\b|\bladdoo\b|\bbarfi\b/i, "Snacks"],
+  [/\bfrozen\b|\bice\s*cream\b|\bgelato\b|\bsorbet\b|\bpopsicle\b/i, "Frozen"],
+  [/\bsalami\b|\bprosciutto\b|\bpepperoni\b|\bdeli\b|\bcold\s*cut\b/i, "Deli"],
 ];
 
 function guessCategory(name: string): string {
@@ -167,7 +168,7 @@ function extractTotal(text: string): number {
   for (const p of patterns) {
     const m = text.match(p);
     if (m?.[1]) {
-      const val = parseFloat(m[1].replace(",", ""));
+      const val = parseFloat(m[1].replace(/,/g, ""));
       if (val > largest) largest = val;
     }
   }
@@ -181,7 +182,7 @@ function parseLineItem(line: string): ParsedBillItem | null {
   if (!priceMatch) return null;
 
   const price = parseFloat(priceMatch[1].replace(",", ""));
-  if (price <= 0 || price > 999) return null;
+  if (price <= 0 || price > 999999) return null;
 
   let name = line
     .replace(/\$[\d,.]+/g, "")
@@ -246,27 +247,39 @@ async function parseReceiptWithAI(text: string, subject: string): Promise<Parsed
   if (!openaiKey) return null;
 
   const today = new Date().toISOString().split("T")[0];
-  const prompt = `You are a grocery receipt parser. Analyze this email and extract grocery purchase data.
-Email subject: "${subject}"
-Email body:
+  // Send up to 12000 chars — Lulu India bills can be 8000+ chars
+  const bodyText = text.slice(0, 12000);
+  const prompt = `You are a grocery receipt parser. Extract structured data from this grocery bill/invoice.
+
+Bill subject: "${subject}"
+Bill text:
 ---
-${text.slice(0, 4000)}
+${bodyText}
 ---
 
-Extract all grocery items and return ONLY valid JSON in this exact format (no markdown, no explanation):
+Return ONLY valid, complete JSON — no markdown fences, no explanation, no truncation:
 {
-  "store": "store name (or 'Unknown Store' if unclear)",
-  "date": "YYYY-MM-DD (today if not found: ${today})",
+  "store": "store name (e.g. Lulu Hypermarket, Big Bazaar; use 'Unknown Store' if unclear)",
+  "date": "YYYY-MM-DD (use today ${today} if not found)",
   "total": 0.00,
   "items": [
-    {"name": "item name", "qty": "quantity or unit", "price": 0.00, "category": "one of: Meat,Seafood,Produce,Dairy,Grains,Frozen,Snacks,Drinks,Pantry,Bakery,Deli,Tax,Other"}
+    {"name": "clean product name", "qty": "quantity with unit if available", "price": 0.00, "category": "one of: Meat,Seafood,Produce,Dairy,Grains,Frozen,Snacks,Drinks,Pantry,Bakery,Deli,Household,Tax,Other"}
   ]
 }
 
-Rules:
-- If this is not a grocery receipt, return {"store":"","date":"","total":0,"items":[]}
-- Include a Tax item if tax is mentioned
-- Estimate category from item name if not explicit`;
+RULES — read carefully:
+1. "total" = the GRAND TOTAL / NET AMOUNT PAYABLE on the bill. Not a subtotal, not a line-item total.
+2. Prices are in INR (Indian Rupees). Numbers like 6,832.25 mean six thousand eight hundred thirty-two.
+3. Item names: use clean English product names (e.g. "Green Chilli" not "GRN CHILLI 3232"). Strip item codes, barcodes, SKUs.
+4. Category rules:
+   - Vegetables, fruits, chilli, capsicum, coriander, ginger, garlic → Produce
+   - Knives, plates, containers, mops, hangers, cleaning tools → Household
+   - Chicken, beef, mutton, lamb, pork (NOT knives or utensils) → Meat
+   - Chips, namkeen, sweets, chocolate, biscuits → Snacks
+   - Cooking oil, spices, masala, dal, rice, atta → Pantry
+5. Skip non-item lines: barcodes, store address, MRP labels, loyalty points, payment mode.
+6. If this is not a grocery receipt, return {"store":"","date":"","total":0,"items":[]}.
+7. Include a Tax item for GST/VAT if present.`;
 
   try {
     const response = await fetch(`${openaiBase}/chat/completions`, {
@@ -276,8 +289,8 @@ Rules:
         Authorization: `Bearer ${openaiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-5-mini",
-        max_completion_tokens: 1500,
+        model: "gpt-4.1-mini",
+        max_completion_tokens: 8000,
         messages: [{ role: "user", content: prompt }],
       }),
     });

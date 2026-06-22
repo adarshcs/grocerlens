@@ -13,6 +13,9 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Disable ETag so sync endpoints always return fresh data (never 304)
+app.set("etag", false);
+
 app.use(
   pinoHttp({
     logger,

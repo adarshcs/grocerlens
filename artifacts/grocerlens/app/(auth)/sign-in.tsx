@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useSSO } from "@clerk/expo";
+import { useSSO, useSignIn } from "@clerk/expo";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -30,6 +30,7 @@ export default function SignInScreen() {
   useWarmUpBrowser();
   const insets = useSafeAreaInsets();
   const { startSSOFlow } = useSSO();
+  const { signIn } = useSignIn();
   const [loadingProvider, setLoadingProvider] = useState<"google" | "apple" | null>(null);
 
   const signInWith = useCallback(
@@ -37,6 +38,16 @@ export default function SignInScreen() {
       const provider = strategy === "oauth_google" ? "google" : "apple";
       setLoadingProvider(provider);
       try {
+        if (Platform.OS === "web") {
+          // Web: full-page redirect OAuth (works in iframe/preview environments)
+          await signIn?.authenticateWithRedirect({
+            strategy,
+            redirectUrl: `${window.location.origin}/sso-callback`,
+            redirectUrlComplete: `${window.location.origin}/`,
+          });
+          return;
+        }
+        // Native (iOS/Android): OAuth popup via Expo
         const { createdSessionId, setActive } = await startSSOFlow({
           strategy,
           redirectUrl: AuthSession.makeRedirectUri(),
@@ -51,7 +62,7 @@ export default function SignInScreen() {
         setLoadingProvider(null);
       }
     },
-    [startSSOFlow]
+    [startSSOFlow, signIn]
   );
 
   return (

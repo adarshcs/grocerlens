@@ -85,6 +85,10 @@ function RootLayoutNav() {
         name="category/[name]"
         options={{ headerShown: false, presentation: "card" }}
       />
+      <Stack.Screen
+        name="sso-callback"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }

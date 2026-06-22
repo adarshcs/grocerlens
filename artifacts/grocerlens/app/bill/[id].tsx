@@ -73,23 +73,29 @@ export default function BillDetailScreen() {
   const nonTaxItems = bill.items.filter((i) => i.category !== "Tax");
   const taxItem = bill.items.find((i) => i.category === "Tax");
 
-  function handleDelete() {
-    Alert.alert(
-      "Delete bill",
-      `Remove ${bill!.store} — ${currency.format(bill!.total)} from your records?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            await removeBill(bill!.id);
-            router.back();
-          },
-        },
-      ]
-    );
+  async function handleDelete() {
+    const confirmed =
+      Platform.OS === "web"
+        ? window.confirm(
+            `Remove ${bill!.store} — ${currency.format(bill!.total)} from your records?`
+          )
+        : await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              "Delete bill",
+              `Remove ${bill!.store} — ${currency.format(bill!.total)} from your records?`,
+              [
+                { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+                { text: "Delete", style: "destructive", onPress: () => resolve(true) },
+              ]
+            );
+          });
+
+    if (!confirmed) return;
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+    await removeBill(bill!.id);
+    router.back();
   }
 
   return (

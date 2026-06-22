@@ -2,7 +2,8 @@ import { Router } from "express";
 import multer from "multer";
 import { simpleParser } from "mailparser";
 import { createRequire } from "node:module";
-const pdfParse = createRequire(import.meta.url)("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
+const _pdfMod = createRequire(import.meta.url)("pdf-parse") as any;
+const pdfParse = (typeof _pdfMod === "function" ? _pdfMod : (_pdfMod.default ?? _pdfMod.pdfParse)) as (buf: Buffer) => Promise<{ text: string }>;
 import { logger } from "../lib/logger";
 import { db } from "@workspace/db";
 import {
